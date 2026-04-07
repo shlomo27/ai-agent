@@ -41,4 +41,8 @@ router.get('/analytics', (req, res) => proxyToAgent('/api/analytics', 'GET', nul
 // Get recommendations
 router.get('/recommendations', (req, res) => proxyToAgent('/api/recommendations', 'GET', null, res));
 
+// Business profile
+router.get('/profile/:sessionId', (req, res) => proxyToAgent(`/api/profile/${req.params.sessionId}`, 'GET', null, res));
+router.delete('/profile/:sessionId', (req, res) => proxyToAgent(`/api/profile/${req.params.sessionId}`, 'DELETE', null, res));
+
 module.exports = router;

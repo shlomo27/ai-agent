@@ -14,6 +14,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     session_id: str
+    onboarding_complete: Optional[bool] = None
+    business_name: Optional[str] = None
 
 
 class PlatformConnectRequest(BaseModel):

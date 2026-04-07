@@ -13,6 +13,8 @@ import anthropic
 from config import config, SUPPORTED_PLATFORMS
 from models.campaign import Campaign, MarketingGoal, PlatformRecommendation
 from models.platform import PlatformAccount
+from models.business_profile import BusinessProfile, TargetAudience, MarketingGoals, ContentStrategy, CompetitorInfo
+from storage.profile_manager import ProfileManager
 from platforms.facebook import FacebookPlatform
 from platforms.instagram import InstagramPlatform
 from platforms.twitter import TwitterPlatform
@@ -417,6 +419,75 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "save_business_profile",
+        "description": "שמור פרטי העסק של המשתמש. קרא לכלי הזה לאחר שאספת מידע מספיק על העסק. Save or update the business profile with information gathered from the user.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "business_name": {"type": "string", "description": "שם העסק"},
+                "website_url": {"type": "string", "description": "כתובת האתר"},
+                "description": {"type": "string", "description": "תיאור קצר של העסק"},
+                "full_description": {"type": "string", "description": "תיאור מפורט"},
+                "product_service": {"type": "string", "description": "מה בדיוק מוצע/נמכר"},
+                "unique_value": {"type": "string", "description": "מה מייחד את העסק ממתחרים"},
+                "pricing_model": {"type": "string", "description": "freemium / subscription / one_time / free"},
+                "price_range": {"type": "string", "description": "טווח מחירים"},
+                "target_age_range": {"type": "string", "description": "טווח גילאים של קהל היעד"},
+                "target_locations": {"type": "array", "items": {"type": "string"}, "description": "מיקומים גיאוגרפיים"},
+                "target_languages": {"type": "array", "items": {"type": "string"}, "description": "שפות"},
+                "target_interests": {"type": "array", "items": {"type": "string"}, "description": "תחומי עניין של קהל היעד"},
+                "target_pain_points": {"type": "array", "items": {"type": "string"}, "description": "כאבים/בעיות של קהל היעד"},
+                "target_professions": {"type": "array", "items": {"type": "string"}, "description": "מקצועות של קהל היעד"},
+                "primary_goal": {"type": "string", "description": "brand_awareness / sales / leads / community / app_downloads"},
+                "secondary_goals": {"type": "array", "items": {"type": "string"}},
+                "monthly_budget": {"type": "number", "description": "תקציב שיווק חודשי בשקלים"},
+                "kpis": {"type": "array", "items": {"type": "string"}, "description": "מדדי הצלחה"},
+                "tone": {"type": "string", "description": "professional / casual / funny / inspirational / educational"},
+                "content_types": {"type": "array", "items": {"type": "string"}, "description": "סוגי תוכן מועדפים"},
+                "posting_frequency": {"type": "string", "description": "daily / 3x_week / weekly"},
+                "preferred_platforms": {"type": "array", "items": {"type": "string"}, "description": "פלטפורמות מועדפות"},
+                "brand_keywords": {"type": "array", "items": {"type": "string"}, "description": "מילות מפתח של המותג"},
+                "avoid_topics": {"type": "array", "items": {"type": "string"}, "description": "נושאים להימנע"},
+                "competitors": {"type": "array", "items": {"type": "string"}, "description": "שמות מתחרים"},
+                "onboarding_complete": {"type": "boolean", "description": "האם ה-onboarding הושלם"},
+            },
+        },
+    },
+    {
+        "name": "get_business_profile",
+        "description": "קבל את פרופיל העסק הנוכחי. Get the current business profile.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "generate_targeted_content",
+        "description": "צור תוכן פרסומי ממוקד לפי פרופיל העסק. Generate highly targeted content based on the business profile.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string", "description": "שם הפלטפורמה"},
+                "content_type": {"type": "string", "description": "promotional / educational / story / engagement / announcement"},
+                "topic": {"type": "string", "description": "נושא ספציפי לפוסט"},
+                "include_cta": {"type": "boolean", "default": True, "description": "האם לכלול קריאה לפעולה"},
+            },
+            "required": ["platform", "content_type"],
+        },
+    },
+    {
+        "name": "find_targeted_groups",
+        "description": "מצא קבוצות ממוקדות לפי פרופיל העסק. Find highly targeted groups based on business profile.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string"},
+                "max_results": {"type": "integer", "default": 20},
+            },
+            "required": ["platform"],
+        },
+    },
 ]
 
 
@@ -426,11 +497,15 @@ class AdvertisingAgent:
     Manages social media presence and advertising campaigns.
     """
 
-    def __init__(self):
+    def __init__(self, session_id: str = "default"):
+        self.session_id = session_id
         self.client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
         self.conversation_history: List[Dict[str, Any]] = []
         self.connected_platforms: Dict[str, Any] = {}
         self.current_campaign: Optional[Campaign] = None
+
+        # Load or create business profile for this session
+        self.profile = ProfileManager.get_or_create(session_id)
 
         # Initialize platform instances
         self.platforms = {
@@ -472,6 +547,30 @@ class AdvertisingAgent:
                 results[platform_name] = account
         return results
 
+    def _build_system_prompt(self) -> str:
+        """Build dynamic system prompt with business profile context."""
+        self.profile = ProfileManager.get_or_create(self.session_id)
+        profile_context = self.profile.to_agent_context()
+
+        if not self.profile.onboarding_complete:
+            onboarding_instruction = """
+## 🚀 התחלה - שאלון עסקי:
+המשתמש עדיין לא הגדיר פרופיל עסקי. התחל את השיחה עם שאלון קצר וידידותי:
+1. שם העסק / האתר
+2. מה המוצר או השירות בדיוק?
+3. מי קהל היעד? (גיל, תחומי עניין, מקצוע)
+4. מה המטרה העיקרית? (מודעות / מכירות / גיוס משתמשים)
+5. מה הייחודיות שלך לעומת מתחרים?
+6. איזה טון? (מקצועי / קליל / מצחיק / מעורר השראה)
+7. תקציב חודשי לשיווק (בשקלים)
+
+לאחר שאספת את המידע → קרא לכלי `save_business_profile` כדי לשמור את הפרופיל.
+"""
+        else:
+            onboarding_instruction = ""
+
+        return SYSTEM_PROMPT + "\n\n" + profile_context + onboarding_instruction
+
     async def chat(self, user_message: str) -> str:
         """
         Send a message to the agent and get a response.
@@ -483,13 +582,14 @@ class AdvertisingAgent:
         })
 
         messages = self.conversation_history.copy()
+        dynamic_system = self._build_system_prompt()
 
         while True:
             response = self.client.messages.create(
                 model="claude-opus-4-6",
-                max_tokens=4096,
+                max_tokens=8096,
                 thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
+                system=dynamic_system,
                 tools=TOOLS,
                 messages=messages,
             )
@@ -608,12 +708,182 @@ class AdvertisingAgent:
             elif tool_name == "get_platform_recommendations":
                 return self._get_platform_recommendations(**tool_input)
 
+            # Profile tools
+            elif tool_name == "save_business_profile":
+                return self._save_business_profile(**tool_input)
+            elif tool_name == "get_business_profile":
+                return self._get_business_profile()
+            elif tool_name == "generate_targeted_content":
+                return self._generate_targeted_content(**tool_input)
+            elif tool_name == "find_targeted_groups":
+                return await self._find_targeted_groups(**tool_input)
+
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
 
         except Exception as e:
             logger.error(f"Tool {tool_name} failed: {e}", exc_info=True)
             return {"error": str(e), "tool": tool_name}
+
+    def _save_business_profile(self, **kwargs) -> Dict[str, Any]:
+        """Save business profile from agent-collected data."""
+        profile = ProfileManager.get_or_create(self.session_id)
+
+        # Basic info
+        for field in ["business_name", "website_url", "description", "full_description",
+                      "product_service", "unique_value", "pricing_model", "price_range"]:
+            if field in kwargs and kwargs[field]:
+                setattr(profile, field, kwargs[field])
+
+        # Target audience
+        if any(k.startswith("target_") for k in kwargs):
+            profile.target_audience.age_range = kwargs.get("target_age_range", profile.target_audience.age_range)
+            if kwargs.get("target_locations"): profile.target_audience.locations = kwargs["target_locations"]
+            if kwargs.get("target_languages"): profile.target_audience.languages = kwargs["target_languages"]
+            if kwargs.get("target_interests"): profile.target_audience.interests = kwargs["target_interests"]
+            if kwargs.get("target_pain_points"): profile.target_audience.pain_points = kwargs["target_pain_points"]
+            if kwargs.get("target_professions"): profile.target_audience.profession = kwargs["target_professions"]
+
+        # Goals
+        if kwargs.get("primary_goal"): profile.goals.primary_goal = kwargs["primary_goal"]
+        if kwargs.get("secondary_goals"): profile.goals.secondary_goals = kwargs["secondary_goals"]
+        if kwargs.get("monthly_budget"): profile.goals.monthly_budget_ils = kwargs["monthly_budget"]
+        if kwargs.get("kpis"): profile.goals.kpis = kwargs["kpis"]
+
+        # Content strategy
+        if kwargs.get("tone"): profile.content_strategy.tone = kwargs["tone"]
+        if kwargs.get("content_types"): profile.content_strategy.content_types = kwargs["content_types"]
+        if kwargs.get("posting_frequency"): profile.content_strategy.posting_frequency = kwargs["posting_frequency"]
+        if kwargs.get("preferred_platforms"): profile.content_strategy.preferred_platforms = kwargs["preferred_platforms"]
+        if kwargs.get("brand_keywords"): profile.content_strategy.brand_keywords = kwargs["brand_keywords"]
+        if kwargs.get("avoid_topics"): profile.content_strategy.avoid_topics = kwargs["avoid_topics"]
+
+        # Competitors
+        if kwargs.get("competitors"):
+            profile.competitors = [CompetitorInfo(name=c) for c in kwargs["competitors"]]
+
+        # Onboarding complete flag
+        if kwargs.get("onboarding_complete"):
+            profile.onboarding_complete = True
+
+        ProfileManager.save(profile)
+        self.profile = profile
+
+        return {
+            "success": True,
+            "message": "פרופיל העסק נשמר בהצלחה",
+            "profile_complete": profile.onboarding_complete,
+            "business_name": profile.business_name,
+        }
+
+    def _get_business_profile(self) -> Dict[str, Any]:
+        """Get current business profile as dict."""
+        profile = ProfileManager.get_or_create(self.session_id)
+        return {
+            "business_name": profile.business_name,
+            "website_url": profile.website_url,
+            "description": profile.description,
+            "product_service": profile.product_service,
+            "unique_value": profile.unique_value,
+            "target_audience": {
+                "age_range": profile.target_audience.age_range,
+                "locations": profile.target_audience.locations,
+                "interests": profile.target_audience.interests,
+                "pain_points": profile.target_audience.pain_points,
+            },
+            "goals": {
+                "primary": profile.goals.primary_goal,
+                "budget_ils": profile.goals.monthly_budget_ils,
+            },
+            "content_strategy": {
+                "tone": profile.content_strategy.tone,
+                "platforms": profile.content_strategy.preferred_platforms,
+                "frequency": profile.content_strategy.posting_frequency,
+            },
+            "onboarding_complete": profile.onboarding_complete,
+        }
+
+    def _generate_targeted_content(
+        self,
+        platform: str,
+        content_type: str,
+        topic: str = "",
+        include_cta: bool = True,
+    ) -> Dict[str, Any]:
+        """Generate highly targeted content based on business profile."""
+        profile = self.profile
+        if not profile.onboarding_complete:
+            return {"error": "פרופיל עסקי לא מלא. אנא השלם את ה-onboarding תחילה."}
+
+        # Build targeted content guidelines
+        tone_map = {
+            "professional": "מקצועי, ישיר, מבוסס נתונים",
+            "casual": "קליל, ידידותי, שיחתי",
+            "funny": "הומוריסטי, קליל, מבדר",
+            "inspirational": "מעורר השראה, מוטיבציוני, חיובי",
+            "educational": "מלמד, מעמיק, מוסיף ערך",
+        }
+
+        char_limits = {
+            "facebook": 500,
+            "instagram": 300,
+            "twitter": 280,
+            "linkedin": 700,
+            "tiktok": 150,
+            "youtube": 200,
+        }
+
+        cta_map = {
+            "sales": f"🎯 התחל עכשיו → {profile.website_url}",
+            "leads": f"📝 השאר פרטים ונחזור אליך → {profile.website_url}",
+            "brand_awareness": f"🔗 גלה עוד → {profile.website_url}",
+            "community": f"💬 הצטרף אלינו → {profile.website_url}",
+        }
+
+        return {
+            "platform": platform,
+            "content_type": content_type,
+            "guidelines": {
+                "business": profile.business_name,
+                "website": profile.website_url,
+                "tone": tone_map.get(profile.content_strategy.tone, "מקצועי"),
+                "target_audience": f"{profile.target_audience.age_range}, {', '.join(profile.target_audience.interests[:3])}",
+                "pain_points_to_address": profile.target_audience.pain_points[:2],
+                "unique_value_to_highlight": profile.unique_value,
+                "max_chars": char_limits.get(platform, 300),
+                "suggested_hashtags": profile.content_strategy.brand_keywords[:5],
+                "cta": cta_map.get(profile.goals.primary_goal, f"→ {profile.website_url}") if include_cta else "",
+                "topic": topic or profile.product_service,
+                "avoid": profile.content_strategy.avoid_topics,
+            },
+            "instruction": "השתמש בהנחיות אלה ליצירת פוסט ממוקד ואפקטיבי לפלטפורמה",
+        }
+
+    async def _find_targeted_groups(
+        self,
+        platform: str,
+        max_results: int = 20,
+    ) -> Dict[str, Any]:
+        """Find groups highly relevant to the business profile."""
+        profile = self.profile
+        if not profile.onboarding_complete:
+            return {"error": "פרופיל עסקי לא מלא"}
+
+        # Build smart keywords from profile
+        keywords = (
+            profile.target_audience.interests[:4] +
+            profile.content_strategy.brand_keywords[:3] +
+            [profile.product_service] +
+            profile.target_audience.profession[:2]
+        )
+        keywords = [k for k in keywords if k]
+
+        # Use existing find_relevant_groups tool
+        return await social_tools.find_relevant_groups(
+            platform=platform,
+            keywords=keywords,
+            limit=max_results,
+        )
 
     def _get_platform_recommendations(
         self,

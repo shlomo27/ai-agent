@@ -20,13 +20,15 @@ from api.schemas import (
     RecommendationsRequest,
 )
 from models.campaign import Campaign, TargetAudience, MarketingGoal
+from models.business_profile import BusinessProfile
+from storage.profile_manager import ProfileManager
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="AI Advertising Agent API",
     description="עוזר פרסום AI - API לניהול פרסום ברשתות חברתיות",
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -46,17 +48,16 @@ _campaigns: Dict[str, Campaign] = {}
 
 def _get_or_create_agent(session_id: str) -> AdvertisingAgent:
     if session_id not in _agents:
-        _agents[session_id] = AdvertisingAgent()
+        _agents[session_id] = AdvertisingAgent(session_id=session_id)
     return _agents[session_id]
 
 
 @app.get("/")
 async def root():
-    """API health check and info."""
     return {
         "name": "AI Advertising Agent",
         "name_he": "עוזר פרסום AI",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
         "docs": "/docs",
     }
@@ -64,19 +65,67 @@ async def root():
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """
-    Chat with the AI advertising agent.
-    The agent can perform social media actions based on the conversation.
-    """
+    """Chat with the AI advertising agent."""
     session_id = request.session_id or str(uuid.uuid4())
     agent = _get_or_create_agent(session_id)
 
     try:
         response = await agent.chat(request.message)
-        return ChatResponse(response=response, session_id=session_id)
+        profile = ProfileManager.get_or_create(session_id)
+        return ChatResponse(
+            response=response,
+            session_id=session_id,
+            onboarding_complete=profile.onboarding_complete,
+            business_name=profile.business_name or None,
+        )
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/profile/{session_id}")
+async def get_profile(session_id: str):
+    """Get the business profile for a session."""
+    profile = ProfileManager.get(session_id)
+    if not profile:
+        return {"exists": False, "onboarding_complete": False}
+    return {
+        "exists": True,
+        "onboarding_complete": profile.onboarding_complete,
+        "business_name": profile.business_name,
+        "website_url": profile.website_url,
+        "description": profile.description,
+        "product_service": profile.product_service,
+        "unique_value": profile.unique_value,
+        "target_audience": {
+            "age_range": profile.target_audience.age_range,
+            "locations": profile.target_audience.locations,
+            "interests": profile.target_audience.interests,
+        },
+        "goals": {
+            "primary": profile.goals.primary_goal,
+            "budget_ils": profile.goals.monthly_budget_ils,
+        },
+        "content_strategy": {
+            "tone": profile.content_strategy.tone,
+            "platforms": profile.content_strategy.preferred_platforms,
+            "frequency": profile.content_strategy.posting_frequency,
+            "brand_keywords": profile.content_strategy.brand_keywords,
+        },
+        "stats": {
+            "total_posts": profile.total_posts_published,
+            "best_platform": profile.best_performing_platform,
+        },
+    }
+
+
+@app.delete("/api/profile/{session_id}")
+async def reset_profile(session_id: str):
+    """Reset/delete the business profile (restart onboarding)."""
+    ProfileManager.delete(session_id)
+    if session_id in _agents:
+        del _agents[session_id]
+    return {"message": "Profile reset. Onboarding will restart.", "session_id": session_id}
 
 
 @app.post("/api/platforms/connect", response_model=PlatformConnectResponse)
@@ -135,6 +184,11 @@ async def create_post(request: CreatePostRequest, session_id: Optional[str] = "d
         hashtags=request.hashtags,
     )
 
+    # Update stats
+    profile = ProfileManager.get_or_create(session_id)
+    profile.total_posts_published += len(request.platforms)
+    ProfileManager.save(profile)
+
     return CreatePostResponse(**result)
 
 
@@ -174,7 +228,6 @@ async def create_campaign(request: CampaignCreateRequest):
 
 @app.get("/api/campaigns/{campaign_id}")
 async def get_campaign(campaign_id: str):
-    """Get campaign details."""
     campaign = _campaigns.get(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -188,11 +241,9 @@ async def get_analytics(platform: Optional[str] = None, days: int = 30, session_
 
     if platform:
         from tools.analytics_tools import get_audience_insights
-        insights = await get_audience_insights(platform)
-        return insights
+        return await get_audience_insights(platform)
     else:
-        comparison = await compare_platforms_performance(days=days)
-        return comparison
+        return await compare_platforms_performance(days=days)
 
 
 @app.get("/api/recommendations")
@@ -203,15 +254,13 @@ async def get_recommendations(
 ):
     """Get platform and strategy recommendations."""
     agent = _get_or_create_agent(session_id)
-
     connected = [p.strip() for p in platforms.split(",") if p.strip()]
     goals_list = [g.strip() for g in goals.split(",") if g.strip()]
 
-    recommendations = agent._get_platform_recommendations(
+    return agent._get_platform_recommendations(
         connected_platforms=connected,
         goals=goals_list,
     )
-    return recommendations
 
 
 @app.delete("/api/chat/{session_id}")
@@ -224,6 +273,5 @@ async def clear_chat_history(session_id: str):
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up resources on shutdown."""
     for agent in _agents.values():
         await agent.close()

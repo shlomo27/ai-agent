@@ -1,29 +1,59 @@
 import { useState, useRef, useEffect } from 'react';
-import './AdvertisingAgent.css';
 
 const API_BASE = '/api/advertising';
 
+const QUICK_ACTIONS = [
+  { label: '🚀 התחל פרסום', msg: 'אני רוצה להתחיל לפרסם את העסק שלי ברשתות החברתיות' },
+  { label: '📊 ניתוח ביצועים', msg: 'תראה לי ניתוח ביצועים של הפרסום שלי' },
+  { label: '📅 לוח תוכן', msg: 'צור לי לוח תוכן לחודש הקרוב' },
+  { label: '🎯 קמפיין ממומן', msg: 'אני רוצה להקים קמפיין פרסום ממומן' },
+  { label: '💡 המלצות', msg: 'מה הפלטפורמות הטובות ביותר בשבילי?' },
+  { label: '✍️ צור פוסט', msg: 'עזור לי לכתוב פוסט מושלם לרשתות החברתיות' },
+];
+
 export default function AdvertisingAgent() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: 'שלום! אני עוזר הפרסום החכם שלך 🚀\n\nאני יכול לעזור לך:\n• לפרסם תוכן ברשתות חברתיות\n• ליצור קמפיינים פרסומיים\n• לנתח את הביצועים שלך\n• להמליץ על פלטפורמות חדשות\n\nמה תרצה לעשות היום?',
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}`);
+  const [sessionId] = useState(() => {
+    const stored = localStorage.getItem('adv_session_id');
+    if (stored) return stored;
+    const newId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem('adv_session_id', newId);
+    return newId;
+  });
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [businessName, setBusinessName] = useState('');
   const messagesEndRef = useRef(null);
+
+  // Load profile status on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/profile/${sessionId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.onboarding_complete) {
+          setOnboardingComplete(true);
+          setBusinessName(data.business_name || '');
+        }
+      })
+      .catch(() => {});
+
+    // Welcome message
+    setMessages([{
+      role: 'assistant',
+      content: 'שלום! אני עוזר הפרסום החכם שלך 🚀\n\nאני פועל על בסיס Claude AI ויכול לעזור לך לפרסם בכל הרשתות החברתיות באופן חכם וממוקד.\n\nאם זו הפעם הראשונה שלנו - אשאל אותך כמה שאלות כדי להכיר את העסק שלך ולהתאים את הפרסום בצורה המדויקת ביותר.\n\nמה תרצה לעשות?',
+    }]);
+  }, [sessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  const sendMessage = async (text) => {
+    const msgText = text || input;
+    if (!msgText.trim() || loading) return;
 
-    const userMessage = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, { role: 'user', content: msgText }]);
     setInput('');
     setLoading(true);
 
@@ -31,92 +61,205 @@ export default function AdvertisingAgent() {
       const res = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input, session_id: sessionId }),
+        body: JSON.stringify({ message: msgText, session_id: sessionId }),
       });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: data.response || 'שגיאה בקבלת תשובה' },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: '❌ שגיאה בחיבור לעוזר. נסה שוב.' },
-      ]);
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.response || 'לא התקבלה תשובה'
+      }]);
+
+      if (data.onboarding_complete) {
+        setOnboardingComplete(true);
+        if (data.business_name) setBusinessName(data.business_name);
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ שגיאה בחיבור לעוזר. נסה שוב.\n(${err.message})`
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  const resetProfile = async () => {
+    if (!confirm('האם לאפס את פרופיל העסק ולהתחיל מחדש?')) return;
+    await fetch(`${API_BASE}/profile/${sessionId}`, { method: 'DELETE' });
+    localStorage.removeItem('adv_session_id');
+    window.location.reload();
   };
 
-  const quickActions = [
-    { label: '📊 ניתוח ביצועים', msg: 'תראה לי את ניתוח הביצועים שלי' },
-    { label: '✍️ צור פוסט', msg: 'עזור לי ליצור פוסט לרשתות חברתיות' },
-    { label: '🎯 קמפיין חדש', msg: 'אני רוצה ליצור קמפיין פרסום חדש' },
-    { label: '💡 המלצות', msg: 'מה הפלטפורמות הטובות ביותר בשבילי?' },
-  ];
+  const s = {
+    wrap: {
+      display: 'flex', flexDirection: 'column', height: '100%',
+      background: '#0a0a14', fontFamily: '"Segoe UI", Arial, sans-serif', direction: 'rtl',
+      borderRadius: '16px', overflow: 'hidden',
+    },
+    header: {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '16px 20px', background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
+      color: 'white', flexShrink: 0,
+    },
+    headerLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+    headerInfo: { display: 'flex', flexDirection: 'column' },
+    headerTitle: { margin: 0, fontSize: '18px', fontWeight: 700 },
+    headerSub: { margin: 0, fontSize: '12px', opacity: 0.8 },
+    statusBadge: {
+      background: onboardingComplete ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.2)',
+      color: onboardingComplete ? '#4ade80' : '#fbbf24',
+      border: `1px solid ${onboardingComplete ? '#4ade80' : '#fbbf24'}`,
+      borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
+    },
+    resetBtn: {
+      background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white',
+      borderRadius: '8px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px',
+    },
+    quickActions: {
+      display: 'flex', gap: '8px', padding: '10px 14px', flexWrap: 'wrap',
+      background: '#12122a', flexShrink: 0, borderBottom: '1px solid #1e1e3a',
+    },
+    qBtn: {
+      background: '#1e1e3a', border: '1px solid #2d2d5e', color: '#a5b4fc',
+      padding: '5px 12px', borderRadius: '16px', cursor: 'pointer',
+      fontSize: '12px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+    },
+    messages: {
+      flex: 1, overflowY: 'auto', padding: '16px 14px',
+      display: 'flex', flexDirection: 'column', gap: '12px',
+    },
+    userBubble: {
+      alignSelf: 'flex-start', background: '#1e1e3a', color: '#e2e8f0',
+      padding: '10px 14px', borderRadius: '16px 16px 4px 16px',
+      maxWidth: '78%', lineHeight: 1.6, fontSize: '14px',
+    },
+    aiBubble: {
+      alignSelf: 'flex-end', background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
+      color: 'white', padding: '10px 14px', borderRadius: '16px 16px 16px 4px',
+      maxWidth: '85%', lineHeight: 1.6, fontSize: '14px', whiteSpace: 'pre-wrap',
+    },
+    loadingBubble: {
+      alignSelf: 'flex-end', background: '#1e1e3a',
+      padding: '12px 18px', borderRadius: '16px',
+      display: 'flex', gap: '5px', alignItems: 'center',
+    },
+    dot: {
+      width: '7px', height: '7px', borderRadius: '50%',
+      background: '#a5b4fc', animation: 'bounce 1.2s infinite',
+    },
+    inputArea: {
+      display: 'flex', gap: '8px', padding: '12px 14px',
+      background: '#12122a', borderTop: '1px solid #1e1e3a', flexShrink: 0,
+    },
+    textarea: {
+      flex: 1, background: '#1e1e3a', border: '1px solid #2d2d5e', color: '#e2e8f0',
+      borderRadius: '10px', padding: '10px 13px', fontSize: '14px',
+      resize: 'none', direction: 'rtl', outline: 'none', fontFamily: 'inherit',
+      lineHeight: 1.5,
+    },
+    sendBtn: {
+      background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)', color: 'white',
+      border: 'none', borderRadius: '10px', padding: '10px 18px',
+      cursor: 'pointer', fontWeight: 700, fontSize: '14px', flexShrink: 0,
+    },
+  };
 
   return (
-    <div className="adv-agent">
-      <div className="adv-header">
-        <div className="adv-header-icon">🚀</div>
-        <div>
-          <h2>עוזר פרסום חכם</h2>
-          <p>מופעל על ידי Claude AI</p>
+    <div style={s.wrap}>
+      <style>{`
+        @keyframes bounce {
+          0%,80%,100% { transform:scale(0.7); opacity:0.4; }
+          40% { transform:scale(1.1); opacity:1; }
+        }
+        .qbtn:hover { background:#2d2d5e !important; color:white !important; }
+        .sbtn:hover { opacity:0.85; }
+        .msg-table { width:100%; border-collapse:collapse; margin:8px 0; }
+        .msg-table th { background:rgba(255,255,255,0.15); padding:6px 10px; text-align:right; font-size:12px; }
+        .msg-table td { padding:6px 10px; font-size:13px; border-top:1px solid rgba(255,255,255,0.08); }
+      `}</style>
+
+      {/* Header */}
+      <div style={s.header}>
+        <div style={s.headerLeft}>
+          <span style={{ fontSize: '28px' }}>🚀</span>
+          <div style={s.headerInfo}>
+            <h2 style={s.headerTitle}>
+              עוזר פרסום חכם {businessName ? `| ${businessName}` : ''}
+            </h2>
+            <p style={s.headerSub}>מופעל על ידי Claude AI · claude-opus-4-6</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={s.statusBadge}>
+            {onboardingComplete ? '✅ פרופיל מוכן' : '⚙️ הגדרה ראשונית'}
+          </span>
+          {onboardingComplete && (
+            <button style={s.resetBtn} onClick={resetProfile}>איפוס</button>
+          )}
         </div>
       </div>
 
-      <div className="adv-quick-actions">
-        {quickActions.map((action) => (
+      {/* Quick Actions */}
+      <div style={s.quickActions}>
+        {QUICK_ACTIONS.map(a => (
           <button
-            key={action.label}
-            className="adv-quick-btn"
-            onClick={() => { setInput(action.msg); }}
+            key={a.label}
+            className="qbtn"
+            style={s.qBtn}
+            onClick={() => sendMessage(a.msg)}
+            disabled={loading}
           >
-            {action.label}
+            {a.label}
           </button>
         ))}
       </div>
 
-      <div className="adv-messages">
+      {/* Messages */}
+      <div style={s.messages}>
         {messages.map((msg, i) => (
-          <div key={i} className={`adv-message adv-message--${msg.role}`}>
-            <div className="adv-bubble">
-              {msg.content.split('\n').map((line, j) => (
-                <span key={j}>{line}<br /></span>
-              ))}
-            </div>
+          <div
+            key={i}
+            style={msg.role === 'user' ? s.userBubble : s.aiBubble}
+          >
+            {msg.content}
           </div>
         ))}
         {loading && (
-          <div className="adv-message adv-message--assistant">
-            <div className="adv-bubble adv-bubble--loading">
-              <span></span><span></span><span></span>
-            </div>
+          <div style={s.loadingBubble}>
+            {[0, 0.2, 0.4].map((delay, i) => (
+              <span key={i} style={{ ...s.dot, animationDelay: `${delay}s` }} />
+            ))}
+            <span style={{ color: '#a5b4fc', fontSize: '12px', marginRight: '6px' }}>
+              Claude חושב...
+            </span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="adv-input-area">
+      {/* Input */}
+      <div style={s.inputArea}>
         <textarea
-          className="adv-input"
+          style={s.textarea}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="כתוב הודעה... (Enter לשליחה)"
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
+          placeholder="כתוב הודעה... (Enter לשליחה, Shift+Enter לשורה חדשה)"
           rows={2}
           disabled={loading}
         />
         <button
-          className="adv-send-btn"
-          onClick={sendMessage}
+          className="sbtn"
+          style={{ ...s.sendBtn, opacity: loading || !input.trim() ? 0.4 : 1 }}
+          onClick={() => sendMessage()}
           disabled={loading || !input.trim()}
         >
           שלח ➤
