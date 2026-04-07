@@ -32,7 +32,8 @@ class BasePlatform(ABC):
 
     def __init__(self, access_token: str = "", demo_mode: bool = True):
         self.access_token = access_token
-        self.demo_mode = demo_mode
+        # Auto-enable demo mode if no access token is provided
+        self.demo_mode = demo_mode or not bool(access_token)
         self._client: Optional[httpx.AsyncClient] = None
         self.logger = logging.getLogger(f"platform.{self.platform_name}")
 
