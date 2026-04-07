@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 from tools.scheduler import PostScheduler
+from tools.notifications import NotificationManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +32,23 @@ async def run_scheduled_posts():
             await _publish_job(job)
             PostScheduler.mark_published(job["job_id"])
             logger.info(f"✅ Published scheduled post {job['job_id']} to {job['platforms']}")
+            # Send success notification
+            platforms_str = ", ".join(job["platforms"])
+            NotificationManager.add(
+                session_id=job["session_id"],
+                title="✅ פוסט פורסם בהצלחה!",
+                message=f"הפוסט שתוזמן פורסם ל: {platforms_str}",
+                type="success",
+            )
         except Exception as e:
             logger.error(f"❌ Failed to publish job {job['job_id']}: {e}")
             PostScheduler.mark_failed(job["job_id"], str(e))
+            NotificationManager.add(
+                session_id=job["session_id"],
+                title="❌ פרסום נכשל",
+                message=f"הפוסט המתוזמן לא הצליח לפרסם: {str(e)[:100]}",
+                type="error",
+            )
 
 
 async def _publish_job(job: Dict[str, Any]):

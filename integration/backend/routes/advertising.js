@@ -45,4 +45,18 @@ router.get('/recommendations', (req, res) => proxyToAgent('/api/recommendations'
 router.get('/profile/:sessionId', (req, res) => proxyToAgent(`/api/profile/${req.params.sessionId}`, 'GET', null, res));
 router.delete('/profile/:sessionId', (req, res) => proxyToAgent(`/api/profile/${req.params.sessionId}`, 'DELETE', null, res));
 
+// Scheduled posts
+router.get('/scheduled/:sessionId', (req, res) => proxyToAgent(`/api/scheduled/${req.params.sessionId}`, 'GET', null, res));
+router.delete('/scheduled/:sessionId/:jobId', (req, res) => proxyToAgent(`/api/scheduled/${req.params.sessionId}/${req.params.jobId}`, 'DELETE', null, res));
+
+// Notifications
+router.get('/notifications/:sessionId', (req, res) => proxyToAgent(`/api/notifications/${req.params.sessionId}`, 'GET', null, res));
+router.post('/notifications/:sessionId/read', (req, res) => proxyToAgent(`/api/notifications/${req.params.sessionId}/read`, 'POST', null, res));
+
+// Usage stats
+router.get('/usage/:sessionId', (req, res) => proxyToAgent(`/api/usage/${req.params.sessionId}`, 'GET', null, res));
+
+// Weekly report
+router.get('/report/:sessionId', (req, res) => proxyToAgent(`/api/report/${req.params.sessionId}`, 'GET', null, res));
+
 module.exports = router;

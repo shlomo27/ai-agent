@@ -16,6 +16,7 @@ class ChatResponse(BaseModel):
     session_id: str
     onboarding_complete: Optional[bool] = None
     business_name: Optional[str] = None
+    usage: Optional[Dict[str, Any]] = None
 
 
 class PlatformConnectRequest(BaseModel):

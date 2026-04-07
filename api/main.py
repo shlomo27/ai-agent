@@ -23,6 +23,8 @@ from models.campaign import Campaign, TargetAudience, MarketingGoal
 from models.business_profile import BusinessProfile
 from storage.profile_manager import ProfileManager
 from tools.job_runner import start_background_runner, stop_background_runner
+from tools.rate_limiter import RateLimiter
+from tools.notifications import NotificationManager
 
 logger = logging.getLogger(__name__)
 
@@ -70,14 +72,22 @@ async def chat(request: ChatRequest):
     session_id = request.session_id or str(uuid.uuid4())
     agent = _get_or_create_agent(session_id)
 
+    # Rate limiting check
+    allowed, reason = RateLimiter.check(session_id)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=reason)
+
     try:
         response = await agent.chat(request.message)
+        RateLimiter.record(session_id)
         profile = ProfileManager.get_or_create(session_id)
+        usage = RateLimiter.get_usage(session_id)
         return ChatResponse(
             response=response,
             session_id=session_id,
             onboarding_complete=profile.onboarding_complete,
             business_name=profile.business_name or None,
+            usage=usage,
         )
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
@@ -276,6 +286,28 @@ async def cancel_post(session_id: str, job_id: str):
     """Cancel a scheduled post."""
     from tools.scheduler import cancel_scheduled_post
     return cancel_scheduled_post(job_id=job_id)
+
+
+@app.get("/api/notifications/{session_id}")
+async def get_notifications(session_id: str):
+    """Get unread notifications for a session."""
+    return {
+        "notifications": NotificationManager.get_unread(session_id),
+        "total_unread": len(NotificationManager.get_unread(session_id)),
+    }
+
+
+@app.post("/api/notifications/{session_id}/read")
+async def mark_notifications_read(session_id: str):
+    """Mark all notifications as read."""
+    NotificationManager.mark_all_read(session_id)
+    return {"message": "All notifications marked as read"}
+
+
+@app.get("/api/usage/{session_id}")
+async def get_usage(session_id: str):
+    """Get API usage stats for a session."""
+    return RateLimiter.get_usage(session_id)
 
 
 @app.get("/api/report/{session_id}")
