@@ -263,6 +263,36 @@ async def get_recommendations(
     )
 
 
+@app.get("/api/scheduled/{session_id}")
+async def get_scheduled_posts(session_id: str):
+    """Get all scheduled posts for a session."""
+    from tools.scheduler import list_scheduled_posts
+    return list_scheduled_posts(session_id=session_id)
+
+
+@app.delete("/api/scheduled/{session_id}/{job_id}")
+async def cancel_post(session_id: str, job_id: str):
+    """Cancel a scheduled post."""
+    from tools.scheduler import cancel_scheduled_post
+    return cancel_scheduled_post(job_id=job_id)
+
+
+@app.get("/api/report/{session_id}")
+async def get_weekly_report(session_id: str):
+    """Generate a weekly report for a session."""
+    from tools.advanced_tools import generate_weekly_report
+    from tools.scheduler import list_scheduled_posts
+    profile = ProfileManager.get_or_create(session_id)
+    scheduled = list_scheduled_posts(session_id=session_id)
+    return generate_weekly_report(
+        session_id=session_id,
+        business_name=profile.business_name,
+        website_url=profile.website_url,
+        posts_this_week=profile.total_posts_published,
+        platforms_active=profile.content_strategy.preferred_platforms,
+    )
+
+
 @app.delete("/api/chat/{session_id}")
 async def clear_chat_history(session_id: str):
     """Clear conversation history for a session."""

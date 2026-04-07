@@ -32,6 +32,15 @@ from tools.advertising_tools import (
     setup_facebook_ad_campaign, setup_google_ads_campaign,
     estimate_ad_budget, analyze_competitor_ads,
 )
+from tools.scheduler import schedule_post, list_scheduled_posts, cancel_scheduled_post
+from tools.advanced_tools import (
+    generate_post_image_prompt,
+    create_ab_test,
+    translate_content,
+    monitor_competitors,
+    generate_weekly_report,
+    generate_smart_reply,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +49,17 @@ SYSTEM_PROMPT = """אתה עוזר פרסום AI מקצועי ואישי. השם
 ## היכולות שלך:
 🌐 **חיבור לרשתות חברתיות**: פייסבוק, אינסטגרם, טוויטר/X, לינקדאין, יוטיוב, טיקטוק
 📊 **ניתוח וגיוס קהל יעד**: מציאת משתמשים, קבוצות וערוצים רלוונטיים
-✍️ **יצירת תוכן**: כתיבת פוסטים, האשטגים ולוח תוכן
-📤 **פרסום אוטומטי**: העלאת פוסטים, סרטונים ותמונות לכל הפלטפורמות
-💬 **מעורבות פעילה**: הגבה לפוסטים, כתוב תגובות, עשה לייקים ועקוב אחרי משתמשים
+✍️ **יצירת תוכן ממוקד**: כתיבת פוסטים מותאמים לפרופיל העסקי, האשטגים ולוח תוכן
+📤 **פרסום אוטומטי**: העלאת פוסטים לכל הפלטפורמות
+📅 **פרסום מתוזמן**: תזמון פוסטים לזמנים אופטימליים אוטומטית
+🖼️ **יצירת תמונות**: פרומפטים מקצועיים ל-DALL-E, Midjourney וCanva
+🔄 **A/B Testing**: יצירת שני וריאנטים לבדיקה מה עובד טוב יותר
+🌐 **תרגום אוטומטי**: פוסטים בעברית, אנגלית, ערבית ועוד
+💬 **מענה חכם לתגובות**: הצעות תגובה מותאמות לסנטימנט
+👥 **ניטור מתחרים**: ניתוח מתחרים ומציאת הזדמנויות
+📧 **דוחות שבועיים**: סיכום מקיף של ביצועי הפרסום
 🎯 **ניתוח ביצועים**: מעקב אחרי תוצאות ואופטימיזציה
-💡 **המלצות**: הצע פלטפורמות חדשות ואסטרטגיות פרסום
+💡 **המלצות חכמות**: פלטפורמות ואסטרטגיות לפי פרופיל העסק
 💰 **פרסום ממומן**: הנחיה בהקמת קמפיינים בגוגל אדס ופייסבוק אדס
 
 ## עקרונות העבודה:
@@ -420,6 +435,120 @@ TOOLS = [
         },
     },
     {
+        "name": "schedule_post",
+        "description": "תזמן פוסט לפרסום בזמן אופטימלי אוטומטי. Schedule a post for automatic publishing at the optimal time.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platforms": {"type": "array", "items": {"type": "string"}, "description": "פלטפורמות לפרסום"},
+                "content": {"type": "string", "description": "תוכן הפוסט"},
+                "scheduled_for": {"type": "string", "description": "'optimal' לזמן אוטומטי, או תאריך ISO כמו '2024-12-25T09:00'"},
+                "hashtags": {"type": "array", "items": {"type": "string"}},
+                "media_urls": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["platforms", "content"],
+        },
+    },
+    {
+        "name": "list_scheduled_posts",
+        "description": "הצג את כל הפוסטים המתוזמנים. List all scheduled posts.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "cancel_scheduled_post",
+        "description": "בטל פוסט מתוזמן. Cancel a scheduled post.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string", "description": "מזהה הפוסט המתוזמן"},
+            },
+            "required": ["job_id"],
+        },
+    },
+    {
+        "name": "generate_post_image",
+        "description": "צור פרומפט מקצועי לתמונה לפוסט (DALL-E / Midjourney / Canva). Generate image prompt for a post.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string"},
+                "content": {"type": "string", "description": "תוכן הפוסט"},
+                "style": {"type": "string", "description": "professional / vibrant / minimal / story / tiktok"},
+                "colors": {"type": "array", "items": {"type": "string"}, "description": "צבעי המותג"},
+            },
+            "required": ["platform", "content"],
+        },
+    },
+    {
+        "name": "create_ab_test",
+        "description": "צור שני וריאנטים של פוסט לבדיקת A/B. Create two post variants for A/B testing.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string"},
+                "topic": {"type": "string"},
+                "tone_a": {"type": "string", "description": "סגנון ווריאנט A: professional/casual/funny/inspirational/educational/urgent"},
+                "tone_b": {"type": "string", "description": "סגנון ווריאנט B"},
+            },
+            "required": ["platform", "topic"],
+        },
+    },
+    {
+        "name": "translate_content",
+        "description": "תרגם פוסט לשפות נוספות (עברית, אנגלית, ערבית). Translate post content to multiple languages.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "תוכן לתרגום"},
+                "source_language": {"type": "string", "default": "hebrew"},
+                "target_languages": {"type": "array", "items": {"type": "string"}, "description": "english, arabic, french, spanish, russian"},
+                "platform": {"type": "string"},
+            },
+            "required": ["content"],
+        },
+    },
+    {
+        "name": "monitor_competitors",
+        "description": "נתח מתחרים ומצא הזדמנויות. Analyze competitors and find opportunities.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "industry": {"type": "string", "description": "תחום העסק"},
+                "competitors": {"type": "array", "items": {"type": "string"}, "description": "שמות מתחרים"},
+                "platform": {"type": "string"},
+            },
+            "required": ["industry", "competitors", "platform"],
+        },
+    },
+    {
+        "name": "generate_weekly_report",
+        "description": "צור דוח שבועי מקיף של ביצועי הפרסום. Generate comprehensive weekly marketing report.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "posts_this_week": {"type": "integer", "default": 0},
+                "platforms_active": {"type": "array", "items": {"type": "string"}},
+                "top_performing_content": {"type": "string"},
+                "total_reach_estimate": {"type": "integer"},
+                "new_followers_estimate": {"type": "integer"},
+            },
+        },
+    },
+    {
+        "name": "generate_smart_reply",
+        "description": "צור תגובה חכמה לתגובה ברשת חברתית. Generate smart reply to a social media comment.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "comment_text": {"type": "string", "description": "תוכן התגובה שהתקבלה"},
+                "platform": {"type": "string"},
+                "tone": {"type": "string", "default": "professional", "description": "professional / casual / funny"},
+                "comment_sentiment": {"type": "string", "default": "positive", "description": "positive / negative / question / neutral"},
+            },
+            "required": ["comment_text", "platform"],
+        },
+    },
+    {
         "name": "save_business_profile",
         "description": "שמור פרטי העסק של המשתמש. קרא לכלי הזה לאחר שאספת מידע מספיק על העסק. Save or update the business profile with information gathered from the user.",
         "input_schema": {
@@ -707,6 +836,47 @@ class AdvertisingAgent:
             # Platform recommendations
             elif tool_name == "get_platform_recommendations":
                 return self._get_platform_recommendations(**tool_input)
+
+            # Scheduler tools
+            elif tool_name == "schedule_post":
+                return schedule_post(session_id=self.session_id, **tool_input)
+            elif tool_name == "list_scheduled_posts":
+                return list_scheduled_posts(session_id=self.session_id)
+            elif tool_name == "cancel_scheduled_post":
+                return cancel_scheduled_post(**tool_input)
+
+            # Advanced tools
+            elif tool_name == "generate_post_image":
+                return generate_post_image_prompt(
+                    business_name=self.profile.business_name, **tool_input
+                )
+            elif tool_name == "create_ab_test":
+                return create_ab_test(
+                    business_name=self.profile.business_name,
+                    website_url=self.profile.website_url,
+                    **tool_input,
+                )
+            elif tool_name == "translate_content":
+                return translate_content(
+                    business_context=self.profile.description, **tool_input
+                )
+            elif tool_name == "monitor_competitors":
+                return monitor_competitors(
+                    business_name=self.profile.business_name, **tool_input
+                )
+            elif tool_name == "generate_weekly_report":
+                return generate_weekly_report(
+                    session_id=self.session_id,
+                    business_name=self.profile.business_name,
+                    website_url=self.profile.website_url,
+                    **tool_input,
+                )
+            elif tool_name == "generate_smart_reply":
+                return generate_smart_reply(
+                    business_name=self.profile.business_name,
+                    tone=self.profile.content_strategy.tone,
+                    **tool_input,
+                )
 
             # Profile tools
             elif tool_name == "save_business_profile":
