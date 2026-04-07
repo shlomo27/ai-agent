@@ -116,6 +116,16 @@ class PostScheduler:
         cls._save_jobs(jobs)
 
     @classmethod
+    def mark_failed(cls, job_id: str, error: str = ""):
+        jobs = cls._load_jobs()
+        for j in jobs:
+            if j["job_id"] == job_id:
+                j["status"] = "failed"
+                j["error"] = error
+                j["failed_at"] = datetime.now().isoformat()
+        cls._save_jobs(jobs)
+
+    @classmethod
     def cancel_job(cls, job_id: str) -> bool:
         jobs = cls._load_jobs()
         for j in jobs:

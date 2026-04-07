@@ -15,6 +15,7 @@ from models.campaign import Campaign, MarketingGoal, PlatformRecommendation
 from models.platform import PlatformAccount
 from models.business_profile import BusinessProfile, TargetAudience, MarketingGoals, ContentStrategy, CompetitorInfo
 from storage.profile_manager import ProfileManager
+from storage.history_manager import HistoryManager
 from platforms.facebook import FacebookPlatform
 from platforms.instagram import InstagramPlatform
 from platforms.twitter import TwitterPlatform
@@ -636,6 +637,9 @@ class AdvertisingAgent:
         # Load or create business profile for this session
         self.profile = ProfileManager.get_or_create(session_id)
 
+        # Restore conversation history from disk
+        self.conversation_history = HistoryManager.load(session_id)
+
         # Initialize platform instances
         self.platforms = {
             "facebook": FacebookPlatform(),
@@ -753,6 +757,8 @@ class AdvertisingAgent:
                     "role": "assistant",
                     "content": final_text,
                 })
+                # Persist to disk so history survives restarts
+                HistoryManager.save(self.session_id, self.conversation_history)
                 return final_text
 
             # Handle tool use
@@ -1110,8 +1116,9 @@ class AdvertisingAgent:
         }
 
     def clear_history(self):
-        """Clear conversation history."""
+        """Clear conversation history from memory and disk."""
         self.conversation_history = []
+        HistoryManager.clear(self.session_id)
 
     async def close(self):
         """Close all platform connections."""

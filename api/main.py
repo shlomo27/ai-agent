@@ -22,6 +22,7 @@ from api.schemas import (
 from models.campaign import Campaign, TargetAudience, MarketingGoal
 from models.business_profile import BusinessProfile
 from storage.profile_manager import ProfileManager
+from tools.job_runner import start_background_runner, stop_background_runner
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +302,15 @@ async def clear_chat_history(session_id: str):
     return {"message": "History cleared", "session_id": session_id}
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Start background job runner on server start."""
+    start_background_runner()
+    logger.info("✅ Background job runner started")
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
+    stop_background_runner()
     for agent in _agents.values():
         await agent.close()
