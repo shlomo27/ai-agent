@@ -497,7 +497,7 @@ class AdvertisingAgent:
             assistant_content = []
             for block in response.content:
                 if block.type == "thinking":
-                    assistant_content.append({"type": "thinking", "thinking": block.thinking})
+                    assistant_content.append({"type": "thinking", "thinking": block.thinking, "signature": block.signature})
                 elif block.type == "text":
                     assistant_content.append({"type": "text", "text": block.text})
                 elif block.type == "tool_use":
