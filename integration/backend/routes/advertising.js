@@ -12,8 +12,8 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 
-// Reuse appify's existing auth middleware
-const requireAuth = require('../middleware/auth');
+// Use auth middleware from routes/auth (has JWT_SECRET fallback — matches token signing)
+const { authMiddleware: requireAuth } = require('./auth');
 
 const AI_AGENT_URL = process.env.AI_AGENT_URL || 'https://ai-agent-production-bf7b.up.railway.app';
 
