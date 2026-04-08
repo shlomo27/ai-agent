@@ -15,13 +15,13 @@ LIMITS_FILE = Path("/tmp/ai-agent-rate-limits.json")
 
 # Limits per plan (hourly, daily)
 PLAN_LIMITS: Dict[str, Dict[str, int]] = {
-    "free":           {"hourly": 5,  "daily": 10},
-    "basic":          {"hourly": 15, "daily": 30},
-    "pro":            {"hourly": 25, "daily": 100},
-    "business":       {"hourly": 50, "daily": 200},
-    "bundle_starter": {"hourly": 15, "daily": 20},
-    "bundle_pro":     {"hourly": 25, "daily": 75},
-    "bundle_business":{"hourly": 50, "daily": 200},
+    "free":           {"hourly": 10, "daily": 10},
+    "basic":          {"hourly": 30, "daily": 30},
+    "pro":            {"hourly": 50, "daily": 100},
+    "business":       {"hourly": 100,"daily": 200},
+    "bundle_starter": {"hourly": 20, "daily": 20},
+    "bundle_pro":     {"hourly": 50, "daily": 75},
+    "bundle_business":{"hourly": 100,"daily": 200},
 }
 
 # Fallback defaults (free plan)
