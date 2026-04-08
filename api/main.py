@@ -70,10 +70,11 @@ async def root():
 async def chat(request: ChatRequest):
     """Chat with the AI advertising agent."""
     session_id = request.session_id or str(uuid.uuid4())
+    plan = request.plan or "free"
     agent = _get_or_create_agent(session_id)
 
-    # Rate limiting check
-    allowed, reason = RateLimiter.check(session_id)
+    # Rate limiting check (plan-aware)
+    allowed, reason = RateLimiter.check(session_id, plan=plan)
     if not allowed:
         raise HTTPException(status_code=429, detail=reason)
 
@@ -81,7 +82,7 @@ async def chat(request: ChatRequest):
         response = await agent.chat(request.message)
         RateLimiter.record(session_id)
         profile = ProfileManager.get_or_create(session_id)
-        usage = RateLimiter.get_usage(session_id)
+        usage = RateLimiter.get_usage(session_id, plan=plan)
         return ChatResponse(
             response=response,
             session_id=session_id,
@@ -305,9 +306,9 @@ async def mark_notifications_read(session_id: str):
 
 
 @app.get("/api/usage/{session_id}")
-async def get_usage(session_id: str):
+async def get_usage(session_id: str, plan: str = "free"):
     """Get API usage stats for a session."""
-    return RateLimiter.get_usage(session_id)
+    return RateLimiter.get_usage(session_id, plan=plan)
 
 
 @app.get("/api/report/{session_id}")

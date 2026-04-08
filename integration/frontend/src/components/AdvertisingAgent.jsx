@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = '/api/advertising';
 
@@ -11,24 +12,42 @@ const QUICK_ACTIONS = [
   { label: '✍️ צור פוסט', msg: 'עזור לי לכתוב פוסט מושלם לרשתות החברתיות' },
 ];
 
+const PLAN_LABELS = {
+  free:            { label: 'Free',            color: '#6b7280' },
+  basic:           { label: 'Basic',           color: '#3b82f6' },
+  pro:             { label: 'Pro',             color: '#8b5cf6' },
+  business:        { label: 'Business',        color: '#f59e0b' },
+  bundle_starter:  { label: 'Bundle Starter',  color: '#3b82f6' },
+  bundle_pro:      { label: 'Bundle Pro',      color: '#8b5cf6' },
+  bundle_business: { label: 'Bundle Business', color: '#f59e0b' },
+};
+
 export default function AdvertisingAgent() {
+  const { token, user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId] = useState(() => {
-    const stored = localStorage.getItem('adv_session_id');
-    if (stored) return stored;
-    const newId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem('adv_session_id', newId);
-    return newId;
-  });
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [businessName, setBusinessName] = useState('');
+  const [plan, setPlan] = useState('free');
   const messagesEndRef = useRef(null);
 
-  // Load profile status on mount
+  // Authenticated fetch helper
+  const authFetch = (url, opts = {}) =>
+    fetch(url, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(opts.headers || {}),
+      },
+    });
+
+  // Load profile + plan on mount
   useEffect(() => {
-    fetch(`${API_BASE}/profile/${sessionId}`)
+    if (!token) return;
+
+    authFetch(`${API_BASE}/profile`)
       .then(r => r.json())
       .then(data => {
         if (data.onboarding_complete) {
@@ -38,12 +57,16 @@ export default function AdvertisingAgent() {
       })
       .catch(() => {});
 
-    // Welcome message
+    authFetch(`${API_BASE}/plan`)
+      .then(r => r.json())
+      .then(data => { if (data.plan) setPlan(data.plan); })
+      .catch(() => {});
+
     setMessages([{
       role: 'assistant',
-      content: 'שלום! אני עוזר הפרסום החכם שלך 🚀\n\nאני פועל על בסיס Claude AI ויכול לעזור לך לפרסם בכל הרשתות החברתיות באופן חכם וממוקד.\n\nאם זו הפעם הראשונה שלנו - אשאל אותך כמה שאלות כדי להכיר את העסק שלך ולהתאים את הפרסום בצורה המדויקת ביותר.\n\nמה תרצה לעשות?',
+      content: `שלום ${user?.name ? user.name : ''}! אני עוזר הפרסום החכם שלך 🚀\n\nאני פועל על בסיס Claude AI ויכול לעזור לך לפרסם בכל הרשתות החברתיות באופן חכם וממוקד.\n\nאם זו הפעם הראשונה שלנו - אשאל אותך כמה שאלות כדי להכיר את העסק שלך.\n\nמה תרצה לעשות?`,
     }]);
-  }, [sessionId]);
+  }, [token]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,18 +81,26 @@ export default function AdvertisingAgent() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await authFetch(`${API_BASE}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msgText, session_id: sessionId }),
+        body: JSON.stringify({ message: msgText }),
       });
+
+      if (res.status === 429) {
+        const data = await res.json();
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ ${data.detail || 'הגעת למגבלת ההודעות. שדרג תוכנית לקבלת יותר הודעות.'}`,
+        }]);
+        return;
+      }
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.response || 'לא התקבלה תשובה'
+        content: data.response || 'לא התקבלה תשובה',
       }]);
 
       if (data.onboarding_complete) {
@@ -79,7 +110,7 @@ export default function AdvertisingAgent() {
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `❌ שגיאה בחיבור לעוזר. נסה שוב.\n(${err.message})`
+        content: `❌ שגיאה בחיבור לעוזר. נסה שוב.\n(${err.message})`,
       }]);
     } finally {
       setLoading(false);
@@ -88,10 +119,16 @@ export default function AdvertisingAgent() {
 
   const resetProfile = async () => {
     if (!confirm('האם לאפס את פרופיל העסק ולהתחיל מחדש?')) return;
-    await fetch(`${API_BASE}/profile/${sessionId}`, { method: 'DELETE' });
-    localStorage.removeItem('adv_session_id');
-    window.location.reload();
+    await authFetch(`${API_BASE}/profile`, { method: 'DELETE' });
+    setOnboardingComplete(false);
+    setBusinessName('');
+    setMessages([{
+      role: 'assistant',
+      content: 'הפרופיל אופס. בוא נתחיל מחדש! ספר לי על העסק שלך.',
+    }]);
   };
+
+  const planInfo = PLAN_LABELS[plan] || PLAN_LABELS.free;
 
   const s = {
     wrap: {
@@ -112,6 +149,12 @@ export default function AdvertisingAgent() {
       background: onboardingComplete ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.2)',
       color: onboardingComplete ? '#4ade80' : '#fbbf24',
       border: `1px solid ${onboardingComplete ? '#4ade80' : '#fbbf24'}`,
+      borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
+    },
+    planBadge: {
+      background: `${planInfo.color}22`,
+      color: planInfo.color,
+      border: `1px solid ${planInfo.color}`,
       borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
     },
     resetBtn: {
@@ -192,7 +235,8 @@ export default function AdvertisingAgent() {
             <p style={s.headerSub}>מופעל על ידי Claude AI · claude-opus-4-6</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={s.planBadge}>{planInfo.label}</span>
           <span style={s.statusBadge}>
             {onboardingComplete ? '✅ פרופיל מוכן' : '⚙️ הגדרה ראשונית'}
           </span>
@@ -220,10 +264,7 @@ export default function AdvertisingAgent() {
       {/* Messages */}
       <div style={s.messages}>
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={msg.role === 'user' ? s.userBubble : s.aiBubble}
-          >
+          <div key={i} style={msg.role === 'user' ? s.userBubble : s.aiBubble}>
             {msg.content}
           </div>
         ))}
