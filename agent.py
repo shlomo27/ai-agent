@@ -717,6 +717,27 @@ class AdvertisingAgent:
 
         return SYSTEM_PROMPT + "\n\n" + profile_context + onboarding_instruction
 
+    def _select_model(self, message: str) -> tuple[str, bool]:
+        """
+        Choose model based on message complexity.
+        Returns (model_name, use_extended_thinking).
+        - Complex tasks → claude-opus-4-6 + thinking (best quality)
+        - Simple tasks  → claude-sonnet-4-6 (fast + cheap)
+        """
+        OPUS_KEYWORDS = [
+            # Hebrew
+            "אסטרטגיה", "קמפיין", "ניתוח", "דוח", "תכנון", "מתחרים",
+            "תקציב", "יעדים", "שנתי", "רבעוני", "מחקר", "השוואה",
+            # English
+            "strategy", "campaign", "analysis", "report", "planning",
+            "competitor", "budget", "annual", "quarterly", "research",
+            "comprehensive", "detailed", "full plan",
+        ]
+        needs_opus = any(kw in message.lower() for kw in OPUS_KEYWORDS)
+        if needs_opus:
+            return "claude-opus-4-6", True
+        return "claude-sonnet-4-6", False
+
     async def chat(self, user_message: str) -> str:
         """
         Send a message to the agent and get a response.
@@ -730,15 +751,22 @@ class AdvertisingAgent:
         messages = self.conversation_history.copy()
         dynamic_system = self._build_system_prompt()
 
+        # Select model based on message complexity
+        model, use_thinking = self._select_model(user_message)
+        logger.info(f"Model selected: {model} (thinking={use_thinking})")
+
         while True:
-            response = self.client.messages.create(
-                model="claude-opus-4-6",
+            create_kwargs = dict(
+                model=model,
                 max_tokens=8096,
-                thinking={"type": "adaptive"},
                 system=dynamic_system,
                 tools=TOOLS,
                 messages=messages,
             )
+            if use_thinking:
+                create_kwargs["thinking"] = {"type": "adaptive"}
+
+            response = self.client.messages.create(**create_kwargs)
 
             # Build assistant message content (preserve all block types)
             assistant_content = []
