@@ -14,10 +14,10 @@
  *   AI_AGENT_URL         — Base URL of the AI Agent API
  */
 
+const { Resend } = require('resend');
 const User = require('../models/User');
 
 const AI_AGENT_URL = process.env.AI_AGENT_URL || 'https://ai-agent-production-bf7b.up.railway.app';
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'reports@ilmariai.com';
 
 const PAID_PLANS = ['basic', 'pro', 'business', 'bundle_starter', 'bundle_pro', 'bundle_business'];
@@ -193,22 +193,15 @@ function buildEmailHtml(data) {
 
 // ─── Send email via Resend ────────────────────────────────────────────────────
 async function sendEmailViaResend(to, subject, html) {
-  if (!RESEND_API_KEY) {
+  if (!process.env.RESEND_API_KEY) {
     console.warn('[weeklyEmail] RESEND_API_KEY not set — skipping send');
     return false;
   }
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.error(`[weeklyEmail] Resend error for ${to}:`, err);
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { error } = await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    if (error) {
+      console.error(`[weeklyEmail] Resend error for ${to}:`, error.message);
       return false;
     }
     return true;
