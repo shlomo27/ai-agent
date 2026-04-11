@@ -127,6 +127,20 @@ userSchema.statics.getCreditsForPlan = function (plan) {
   return PLAN_CREDITS[plan] || 10;
 };
 
+// Resets credits to plan maximum if 30+ days have passed since last reset
+userSchema.methods.resetCreditsIfNeeded = async function () {
+  const now = new Date();
+  const lastReset = this.creditsLastReset || new Date(0);
+  const daysSince = (now - lastReset) / (1000 * 60 * 60 * 24);
+  if (daysSince >= 30) {
+    this.credits = PLAN_CREDITS[this.plan] || 10;
+    this.creditsLastReset = now;
+    await this.save();
+    return true;
+  }
+  return false;
+};
+
 // ─── Marketing helpers ────────────────────────────────────────────────────────
 userSchema.methods.getMarketingDailyLimit = function () {
   return MARKETING_DAILY_LIMITS[this.marketing_plan] || 10;
