@@ -33,6 +33,8 @@ const UI_TEXT = {
     placeholder: 'כתוב הודעה... (Enter לשליחה, Shift+Enter לשורה חדשה)',
     send: 'שלח ➤',
     error: '❌ שגיאה בחיבור לעוזר. נסה שוב.',
+    noResponse: 'לא התקבלה תשובה',
+    rateLimited: 'הגעת למגבלת ההודעות. שדרג תוכנית לקבלת יותר הודעות.',
     welcomeNew: (name) => `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
     resetConfirm: 'האם לאפס את פרופיל העסק ולהתחיל מחדש?',
     resetMsg: 'הפרופיל אופס. בוא נתחיל מחדש! ספר לי על העסק שלך.',
@@ -48,6 +50,8 @@ const UI_TEXT = {
     placeholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
     send: 'Send ➤',
     error: '❌ Connection error. Please try again.',
+    noResponse: 'No response received',
+    rateLimited: 'Message limit reached. Upgrade your plan for more messages.',
     welcomeNew: (name) => `Hello${name}! 👋 I'm **Mefaresem** - the smart advertising assistant of ilmariai.com.\n\nI can see this is our first time together - great! 🎉\n\nTo work smartly and accurately, I'll need to get to know your business a little.\n\n**Are you ready to start the onboarding process?**`,
     resetConfirm: 'Reset the business profile and start over?',
     resetMsg: 'Profile reset. Let\'s start fresh!',
@@ -145,7 +149,7 @@ export default function AdvertisingAgent() {
         const data = await res.json();
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `⚠️ ${data.detail || 'הגעת למגבלת ההודעות. שדרג תוכנית לקבלת יותר הודעות.'}`,
+          content: `⚠️ ${data.detail || t.rateLimited}`,
         }]);
         return;
       }
@@ -155,7 +159,7 @@ export default function AdvertisingAgent() {
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.response || 'לא התקבלה תשובה',
+        content: data.response || t.noResponse,
       }]);
 
       if (data.onboarding_complete) {
@@ -165,7 +169,7 @@ export default function AdvertisingAgent() {
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `❌ שגיאה בחיבור לעוזר. נסה שוב.\n(${err.message})`,
+        content: `${t.error}\n(${err.message})`,
       }]);
     } finally {
       setLoading(false);
@@ -176,6 +180,8 @@ export default function AdvertisingAgent() {
     const next = language === 'he' ? 'en' : 'he';
     setLanguage(next);
     localStorage.setItem('adv_lang', next);
+    // Notify parent page (AdvertisingPage) so its title/subtitle also updates
+    window.dispatchEvent(new CustomEvent('adv_lang_change', { detail: next }));
   };
 
   const resetProfile = async () => {
