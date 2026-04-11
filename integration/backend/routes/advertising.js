@@ -168,6 +168,60 @@ router.get('/plan', (req, res) => {
   });
 });
 
+// ─── CRM leads ────────────────────────────────────────────────────────────────
+router.get('/crm', (req, res) =>
+  proxyToAgent(`/api/crm/${req.advertising.userId}`, 'GET', null, res)
+);
+
+// ─── Audit log ────────────────────────────────────────────────────────────────
+router.get('/audit', (req, res) =>
+  proxyToAgent(`/api/audit/${req.advertising.userId}`, 'GET', null, res)
+);
+
+// ─── Weekly email (manual trigger, Pro+ only) ─────────────────────────────────
+router.post('/send-weekly-report', async (req, res) => {
+  if (!req.advertising.features.report) {
+    return res.status(403).json({
+      error: 'תכונה זו זמינה בתוכנית Pro ומעלה',
+      upgrade_required: true,
+      current_plan: req.advertising.plan,
+    });
+  }
+  try {
+    const {
+      fetchWeeklyReportData,
+      buildEmailHtml,
+      sendEmailViaResend,
+    } = require('../services/weeklyEmailReport');
+
+    const user = await User.findById(req.advertising.userId).select('email').lean();
+    if (!user || !user.email) {
+      return res.status(400).json({ error: 'אין כתובת מייל מוגדרת' });
+    }
+
+    const data = await fetchWeeklyReportData(req.advertising.userId);
+    if (!data || !data.report) {
+      return res.status(500).json({ error: 'לא ניתן לייצר דוח — נסה שוב' });
+    }
+
+    const html = buildEmailHtml(data);
+    const ok = await sendEmailViaResend(user.email, data.email_subject, html);
+
+    if (!ok) {
+      return res.status(500).json({ error: 'שגיאה בשליחת המייל' });
+    }
+
+    return res.json({
+      message: 'דוח שבועי נשלח בהצלחה',
+      email: user.email,
+      report_period: data.report?.period,
+    });
+  } catch (err) {
+    console.error('[send-weekly-report]', err.message);
+    res.status(500).json({ error: 'שגיאה בשליחת הדוח' });
+  }
+});
+
 // ─── Chat history ─────────────────────────────────────────────────────────────
 router.get('/chat/history', (req, res) =>
   proxyToAgent(`/api/chat/${req.advertising.userId}/history`, 'GET', null, res)

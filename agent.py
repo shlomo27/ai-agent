@@ -41,7 +41,11 @@ from tools.advanced_tools import (
     monitor_competitors,
     generate_weekly_report,
     generate_smart_reply,
+    generate_campaign_brief,
+    submit_to_directory,
+    save_to_crm,
 )
+from tools.action_log import log_action, get_action_log
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +95,36 @@ SYSTEM_PROMPT = """אתה עוזר פרסום AI מקצועי ואישי. השם
 5. התאם את התוכן לקהל הישראלי (תוך שמירה על אפשרות לפרסום בינלאומי)
 6. שמור על אתיקה - אל תשלח ספאם ואל תפר תנאי שימוש
 7. **חשוב מאוד**: אם פלטפורמה מחזירה שגיאה או פועלת במצב דמו (אין token), ציין זאת בבירור - "לא פורסם בפועל - נדרש חיבור API". אל תדווח על הצלחה כשהפעולה לא בוצעה באמת.
+
+## ⚠️ חוקים ואיסורים — חובה לעמוד בהם:
+
+### 🔐 חוק 1 — אישור לפני פרסום (NO PUBLISHING WITHOUT APPROVAL)
+**לפני כל שימוש ב-`post_content` או `schedule_post`:**
+- הצג את תוכן הפוסט המלא למשתמש
+- שאל: **"האם לאשר ולפרסם/לתזמן? (כן/לא)"**
+- המתן לתגובת "כן" מפורשת לפני ביצוע הפרסום
+- אם המשתמש ביקש שינויים — ערוך ושאל שוב
+- **לעולם אל תפרסם אוטומטית ללא אישור המשתמש**
+
+### ✏️ חוק 2 — גיוון תוכן בין פלטפורמות (NO DUPLICATE TEXT)
+כאשר מפרסמים לכמה פלטפורמות בו-זמנית:
+- כל פלטפורמה חייבת לקבל גרסה **שונה מעט** של הפוסט (פתיחה שונה, אורך מתאים)
+- פייסבוק: ניתן להאריך, LinkedIn: מקצועי יותר, Instagram: ויזואלי + hashtags, Twitter: קצר בלבד
+- אין להדביק אותו טקסט מילה במילה לכל הפלטפורמות
+
+### 🎯 חוק 3 — קריאה לפעולה חובה (CTA MANDATORY)
+- כל פוסט פרסומי **חייב** לכלול קריאה לפעולה (CTA) ברורה
+- ה-CTA חייב לכלול קישור לאתר העסק (מהפרופיל) או דרך יצירת קשר
+- דוגמאות: "בקרו ב-[אתר]", "שלחו הודעה", "הירשמו עכשיו"
+
+### 🔒 חוק 4 — קישורים מאושרים בלבד (AUTHORIZED LINKS ONLY)
+- אין להוסיף קישורים חיצוניים שאינם מהפרופיל העסקי של המשתמש
+- הקישור היחיד המותר הוא ה-website_url מהפרופיל העסקי
+- אין ליצור, להמציא, או לצרף URL שלא סופק על ידי המשתמש
+
+### 📋 חוק 5 — תיעוד פעולות (LOG ALL ACTIONS)
+- לאחר כל פרסום, תיזמון, או יצירת קמפיין: קרא ל-`log_action`
+- פרט: סוג הפעולה, פלטפורמות, תוכן (ראשי 100 תווים), תוצאה
 
 ## שפה:
 - עברית כברירת מחדל
@@ -631,6 +665,76 @@ TOOLS = [
             "required": ["platform"],
         },
     },
+    {
+        "name": "generate_campaign_brief",
+        "description": "צור בריף קמפיין שיווקי מלא — מסמך אסטרטגי עם יעדים, מסרים, קהל, תקציב ולוח זמנים. Generate a full advertising campaign brief.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "description": "brand_awareness / lead_generation / sales / community / app_downloads"},
+                "platforms": {"type": "array", "items": {"type": "string"}, "description": "פלטפורמות לקמפיין"},
+                "target_audience": {"type": "string", "description": "תיאור קהל היעד"},
+                "budget_ils": {"type": "number", "description": "תקציב כולל בשקלים"},
+                "duration_weeks": {"type": "integer", "default": 4, "description": "אורך הקמפיין בשבועות"},
+            },
+            "required": ["goal", "platforms", "target_audience"],
+        },
+    },
+    {
+        "name": "submit_to_directory",
+        "description": "צור חבילת רישום לדירקטוריות עסקיות (גוגל ביזנס, דפי זהב, ועוד). Generate business directory submission package.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "description": "קטגוריית העסק"},
+                "location": {"type": "string", "default": "Israel", "description": "מיקום גיאוגרפי"},
+                "phone": {"type": "string", "description": "טלפון (אופציונלי)"},
+                "email": {"type": "string", "description": "מייל (אופציונלי)"},
+            },
+            "required": ["category"],
+        },
+    },
+    {
+        "name": "save_to_crm",
+        "description": "שמור קשר / ליד שנוצר מפעולה ברשת חברתית ב-CRM הפנימי. Save a lead or contact result to the internal CRM.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "contact_name": {"type": "string", "description": "שם הקשר"},
+                "contact_platform": {"type": "string", "description": "פלטפורמה שממנה הגיע"},
+                "contact_id": {"type": "string", "description": "מזהה המשתמש/קשר בפלטפורמה"},
+                "action_taken": {"type": "string", "description": "הפעולה שבוצעה (follow, message, comment)"},
+                "notes": {"type": "string", "description": "הערות נוספות"},
+                "tags": {"type": "array", "items": {"type": "string"}, "description": "תגיות (ליד חם, B2B, וכו')"},
+                "follow_up_date": {"type": "string", "description": "תאריך מעקב מומלץ (ISO)"},
+            },
+            "required": ["contact_name", "contact_platform", "contact_id", "action_taken"],
+        },
+    },
+    {
+        "name": "log_action",
+        "description": "תעד פעולה בלוג הביקורת. Log an action to the audit trail. Call after every publish/schedule/campaign action.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action_type": {"type": "string", "description": "post_published / post_scheduled / campaign_created / report_generated / follower_added / comment_posted"},
+                "description": {"type": "string", "description": "תיאור קצר של הפעולה"},
+                "details": {"type": "object", "description": "פרטים נוספים (פלטפורמה, תוכן וכו')"},
+                "status": {"type": "string", "default": "success", "description": "success / failed / pending"},
+            },
+            "required": ["action_type", "description"],
+        },
+    },
+    {
+        "name": "get_action_log",
+        "description": "קבל היסטוריית פעולות מלאה של הסשן. Get the full action audit log for this session.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "default": 50, "description": "מספר פעולות אחרונות להציג"},
+            },
+        },
+    },
 ]
 
 
@@ -934,6 +1038,28 @@ class AdvertisingAgent:
                 return self._generate_targeted_content(**tool_input)
             elif tool_name == "find_targeted_groups":
                 return await self._find_targeted_groups(**tool_input)
+
+            # New tools: campaign brief, directories, CRM, audit log
+            elif tool_name == "generate_campaign_brief":
+                return generate_campaign_brief(
+                    business_name=self.profile.business_name,
+                    unique_value=self.profile.unique_value,
+                    website_url=self.profile.website_url,
+                    **tool_input,
+                )
+            elif tool_name == "submit_to_directory":
+                return submit_to_directory(
+                    business_name=self.profile.business_name,
+                    business_description=self.profile.description,
+                    website_url=self.profile.website_url,
+                    **tool_input,
+                )
+            elif tool_name == "save_to_crm":
+                return save_to_crm(session_id=self.session_id, **tool_input)
+            elif tool_name == "log_action":
+                return log_action(session_id=self.session_id, **tool_input)
+            elif tool_name == "get_action_log":
+                return {"actions": get_action_log(session_id=self.session_id, **tool_input)}
 
             else:
                 return {"error": f"Unknown tool: {tool_name}"}

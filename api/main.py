@@ -349,6 +349,55 @@ async def clear_chat_history(session_id: str):
     return {"message": "History cleared", "session_id": session_id}
 
 
+@app.get("/api/crm/{session_id}")
+async def get_crm_leads(session_id: str):
+    """Get all CRM leads/contacts for a session."""
+    from tools.action_log import get_action_log
+    import os, json
+    crm_path = os.path.join(os.environ.get("CRM_DIR", "/tmp/ai-agent-crm"), f"{session_id}.json")
+    if not os.path.exists(crm_path):
+        return {"leads": [], "total": 0}
+    try:
+        with open(crm_path, "r", encoding="utf-8") as f:
+            leads = json.load(f)
+        return {"leads": leads, "total": len(leads)}
+    except Exception:
+        return {"leads": [], "total": 0}
+
+
+@app.get("/api/audit/{session_id}")
+async def get_audit_log(session_id: str, limit: int = 50):
+    """Get audit action log for a session."""
+    from tools.action_log import get_action_log
+    return {"actions": get_action_log(session_id, limit=limit)}
+
+
+@app.post("/api/weekly-email/{session_id}")
+async def generate_weekly_email_data(session_id: str):
+    """
+    Generate weekly email report data for a session.
+    Called by appify backend cron to get data before sending via Resend.
+    """
+    from tools.advanced_tools import generate_weekly_report
+    from tools.scheduler import list_scheduled_posts
+    profile = ProfileManager.get_or_create(session_id)
+    scheduled = list_scheduled_posts(session_id=session_id)
+    report = generate_weekly_report(
+        session_id=session_id,
+        business_name=profile.business_name,
+        website_url=profile.website_url,
+        posts_this_week=profile.total_posts_published,
+        platforms_active=profile.content_strategy.preferred_platforms,
+    )
+    return {
+        "session_id": session_id,
+        "email_subject": f"סיכום שבועי — {profile.business_name or 'העסק שלך'} | ilmariai.com",
+        "business_name": profile.business_name,
+        "report": report,
+        "scheduled_upcoming": scheduled.get("scheduled_posts", [])[:3],
+    }
+
+
 @app.on_event("startup")
 async def startup_event():
     """Start background job runner on server start."""

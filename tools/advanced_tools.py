@@ -285,6 +285,274 @@ def generate_weekly_report(
     }
 
 
+def generate_campaign_brief(
+    business_name: str,
+    goal: str,
+    platforms: List[str],
+    target_audience: str,
+    budget_ils: float = 0,
+    duration_weeks: int = 4,
+    unique_value: str = "",
+    website_url: str = "",
+) -> Dict[str, Any]:
+    """
+    Generate a structured advertising campaign brief — a complete strategic document
+    that defines objectives, messaging, audience, timeline, and success metrics.
+    """
+    goal_map = {
+        "brand_awareness": {
+            "title": "מודעות למותג",
+            "kpis": ["חשיפות (Impressions)", "טווח הגעה (Reach)", "עלייה בעוקבים"],
+            "content_focus": "סיפור המותג, ערכים, אנשים מאחורי העסק",
+        },
+        "lead_generation": {
+            "title": "גיוס לידים",
+            "kpis": ["מספר לידים", "עלות לליד (CPL)", "שיעור המרה"],
+            "content_focus": "הצעת ערך ברורה, מדריכים חינמיים, הוכחות חברתיות",
+        },
+        "sales": {
+            "title": "הגדלת מכירות",
+            "kpis": ["הכנסות", "ROAS", "מכירות ישירות"],
+            "content_focus": "מבצעים, ביקורות לקוחות, הדגמות מוצר",
+        },
+        "community": {
+            "title": "בניית קהילה",
+            "kpis": ["מעורבות (Engagement Rate)", "תגובות ושיתופים", "חברי קהילה חדשים"],
+            "content_focus": "שאלות, סקרים, תוכן מאחורי הקלעים, UGC",
+        },
+        "app_downloads": {
+            "title": "הורדות אפליקציה",
+            "kpis": ["מספר התקנות", "עלות לפעולה (CPA)", "retention 7 יום"],
+            "content_focus": "הדגמות פיצ׳רים, ביקורות משתמשים, תמריצי הורדה",
+        },
+    }
+
+    goal_info = goal_map.get(goal, goal_map["brand_awareness"])
+    budget_per_week = budget_ils / max(duration_weeks, 1) if budget_ils else 0
+    budget_per_platform = budget_per_week / max(len(platforms), 1) if budget_per_week else 0
+
+    platform_tactics = {
+        "facebook": "ממומן + קבוצות רלוונטיות + Retargeting",
+        "instagram": "Reels + Stories + שיתופי פעולה עם מיקרו-אינפלואנסרים",
+        "linkedin": "תוכן מקצועי + קמפיין InMail + Lead Gen Forms",
+        "twitter": "Threads + עידוד RT + קמפיין Promoted Tweets",
+        "tiktok": "סרטונים וויראליים + Hashtag Challenge + TikTok Ads",
+        "youtube": "Pre-roll Ads + סרטוני How-To + SEO לכותרות",
+    }
+
+    return {
+        "brief_title": f"קמפיין {goal_info['title']} — {business_name}",
+        "generated_at": datetime.now().strftime("%d/%m/%Y"),
+        "executive_summary": {
+            "business": business_name,
+            "goal": goal_info["title"],
+            "duration": f"{duration_weeks} שבועות",
+            "total_budget": f"₪{budget_ils:,.0f}" if budget_ils else "לא הוגדר",
+            "platforms": platforms,
+            "unique_value": unique_value,
+        },
+        "target_audience": {
+            "description": target_audience,
+            "recommended_targeting": [
+                f"גיל: לפי פרופיל קהל היעד של {business_name}",
+                f"מיקום: ישראל (הרחב לפי צורך)",
+                f"תחומי עניין: הקשורים ל-{target_audience}",
+            ],
+        },
+        "messaging_strategy": {
+            "primary_message": f"הצע ערך ייחודי: {unique_value or 'להגדיר'}",
+            "content_focus": goal_info["content_focus"],
+            "tone": "להגדיר לפי פרופיל המותג",
+            "cta": f"קריאה לפעולה ברורה + קישור ל-{website_url or 'האתר'}",
+        },
+        "platform_tactics": {
+            p: platform_tactics.get(p, "פוסטים ממוקדים + engagement") for p in platforms
+        },
+        "budget_allocation": {
+            "total": f"₪{budget_ils:,.0f}" if budget_ils else "לא הוגדר",
+            "weekly": f"₪{budget_per_week:,.0f}" if budget_per_week else "לא הוגדר",
+            "per_platform_weekly": f"₪{budget_per_platform:,.0f}" if budget_per_platform else "לא הוגדר",
+            "split_recommendation": "60% ממומן, 40% אורגני",
+        },
+        "timeline": {
+            "week_1": "הכנה: יצירת תוכן, הגדרת קהלים, הקמת פיקסל/מעקב",
+            "week_2": f"השקה: פרסום ראשון + A/B testing",
+            "week_3": "אופטימיזציה: השבתת מה שלא עובד, הגברת מה שעובד",
+            f"week_{duration_weeks}": "סיכום: דוח ביצועים + תכנון הקמפיין הבא",
+        },
+        "success_metrics": goal_info["kpis"],
+        "content_calendar_note": f"מומלץ {len(platforms) * 3} פוסטים לשבוע בסה\"כ ({3} לפלטפורמה)",
+        "next_steps": [
+            "אשר את הבריף עם הלקוח",
+            "צור את חומרי הקריאייטיב (תמונות + טקסטים)",
+            "הגדר פיקסל מעקב באתר",
+            "תזמן את הפוסטים הראשונים",
+            "הגדר את הקמפיינים הממומנים",
+        ],
+    }
+
+
+def submit_to_directory(
+    business_name: str,
+    business_description: str,
+    website_url: str,
+    category: str,
+    location: str = "Israel",
+    phone: str = "",
+    email: str = "",
+) -> Dict[str, Any]:
+    """
+    Generate a business directory submission package —
+    ready-to-use listings for major Israeli and international directories.
+    """
+    short_desc = business_description[:150] + "..." if len(business_description) > 150 else business_description
+
+    directories = {
+        "israel": [
+            {
+                "name": "דפי זהב (d.co.il)",
+                "url": "https://www.d.co.il",
+                "free": True,
+                "notes": "רשום עסק חינם, מוסיף אמינות בחיפוש גוגל",
+                "listing_text": f"{business_name} | {short_desc} | {location}",
+            },
+            {
+                "name": "BNI ישראל",
+                "url": "https://bni.co.il",
+                "free": False,
+                "notes": "רשת עסקים בתשלום, מומלץ לעסקים B2B",
+                "listing_text": f"{business_name} — {category}",
+            },
+            {
+                "name": "Waze for Business",
+                "url": "https://www.waze.com/en/business",
+                "free": True,
+                "notes": "חיוני לעסקים עם כתובת פיזית",
+                "listing_text": f"{business_name}, {location}",
+            },
+            {
+                "name": "Google Business Profile",
+                "url": "https://business.google.com",
+                "free": True,
+                "notes": "**חשוב ביותר** — מופיע בחיפוש Google Maps",
+                "listing_text": f"{business_name} | {category} | {location} | {website_url}",
+            },
+        ],
+        "international": [
+            {
+                "name": "Yelp",
+                "url": "https://biz.yelp.com",
+                "free": True,
+                "notes": "רלוונטי לעסקים עם קהל אנגלית",
+                "listing_text": f"{business_name} — {short_desc}",
+            },
+            {
+                "name": "Crunchbase",
+                "url": "https://www.crunchbase.com",
+                "free": True,
+                "notes": "מומלץ לסטארטאפים וחברות טכנולוגיה",
+                "listing_text": f"{business_name} | {category} startup | {website_url}",
+            },
+            {
+                "name": "Product Hunt",
+                "url": "https://www.producthunt.com",
+                "free": True,
+                "notes": "מצוין להשקות מוצרים טכנולוגיים",
+                "listing_text": f"{business_name} — {short_desc}",
+            },
+        ],
+    }
+
+    standard_listing = {
+        "business_name": business_name,
+        "category": category,
+        "description_short": short_desc,
+        "description_long": business_description,
+        "website": website_url,
+        "phone": phone,
+        "email": email,
+        "location": location,
+        "keywords": f"{category}, {business_name}, {location}",
+    }
+
+    return {
+        "summary": f"חבילת רישום מוכנה עבור {business_name}",
+        "directories": directories,
+        "standard_listing": standard_listing,
+        "seo_tips": [
+            "השתמש באותו שם עסק בדיוק בכל הדירקטוריות (NAP Consistency)",
+            "הוסף תמונות מקצועיות לכל פרופיל",
+            "בקש מלקוחות מרוצים לכתוב ביקורות בגוגל",
+            "עדכן שעות פתיחה ופרטי קשר בכל הפלטפורמות",
+        ],
+        "priority_order": [
+            "1. Google Business Profile (חינם, השפעה הכי גדולה על SEO)",
+            "2. דפי זהב (קהל ישראלי)",
+            "3. Waze (עסק עם כתובת פיזית)",
+            "4. Crunchbase / Product Hunt (אם טכנולוגיה/סטארטאפ)",
+        ],
+        "estimated_time": "2-3 שעות לרישום בכל הדירקטוריות המומלצות",
+    }
+
+
+def save_to_crm(
+    session_id: str,
+    contact_name: str,
+    contact_platform: str,
+    contact_id: str,
+    action_taken: str,
+    notes: str = "",
+    tags: List[str] = None,
+    follow_up_date: str = "",
+) -> Dict[str, Any]:
+    """
+    Save a contact / lead interaction result to the internal CRM log.
+    Stores leads gathered from social media actions for follow-up.
+    """
+    import os
+    crm_dir = os.environ.get("CRM_DIR", "/tmp/ai-agent-crm")
+    os.makedirs(crm_dir, exist_ok=True)
+    crm_path = os.path.join(crm_dir, f"{session_id}.json")
+
+    entry = {
+        "id": f"lead_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "timestamp": datetime.now().isoformat(),
+        "contact_name": contact_name,
+        "platform": contact_platform,
+        "contact_id": contact_id,
+        "action_taken": action_taken,
+        "notes": notes,
+        "tags": tags or [],
+        "follow_up_date": follow_up_date,
+        "status": "new",
+    }
+
+    existing = []
+    if os.path.exists(crm_path):
+        try:
+            with open(crm_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            existing = []
+
+    existing.append(entry)
+    with open(crm_path, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    logger.info(f"[CRM][{session_id}] Saved contact: {contact_name} from {contact_platform}")
+
+    return {
+        "saved": True,
+        "lead_id": entry["id"],
+        "contact": contact_name,
+        "platform": contact_platform,
+        "action": action_taken,
+        "follow_up": follow_up_date or "לא נקבע",
+        "total_leads": len(existing),
+        "message": f"קשר '{contact_name}' נשמר ב-CRM. סה\"כ {len(existing)} קשרים.",
+    }
+
+
 def generate_smart_reply(
     comment_text: str,
     platform: str,
