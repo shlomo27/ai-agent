@@ -157,12 +157,22 @@ router.post('/webhook', async (req, res) => {
 
     if (eventType === 'subscription.canceled' || eventType === 'subscription.paused') {
       if (userId) {
-        await User.findByIdAndUpdate(userId, {
-          marketing_plan: 'free',
-          subscriptionStatus: 'canceled',
-          paddleSubscriptionId: null,
-        });
-        console.log(`❌ User ${userId} subscription canceled → free`);
+        // Determine what was canceled to reset the right plan(s)
+        const priceId = data.items?.[0]?.price?.id;
+        const planName = PRICE_TO_PLAN[priceId] || null;
+        const resetUpdates = { subscriptionStatus: 'canceled', paddleSubscriptionId: null };
+        if (!planName || planName.startsWith('bundle_')) {
+          // Bundle or unknown: reset both
+          resetUpdates.plan = 'free';
+          resetUpdates.marketing_plan = 'free';
+        } else if (planName.startsWith('aibuilder_')) {
+          resetUpdates.plan = 'free';
+        } else {
+          // Marketing only
+          resetUpdates.marketing_plan = 'free';
+        }
+        await User.findByIdAndUpdate(userId, resetUpdates);
+        console.log(`❌ User ${userId} subscription canceled → free (was: ${planName})`);
       }
     }
 
