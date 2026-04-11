@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = '/api/advertising';
@@ -24,6 +24,7 @@ const QUICK_ACTIONS = {
 
 const UI_TEXT = {
   he: {
+    headerTitle: 'עוזר פרסום חכם',
     subtitle: 'מופעל על ידי Claude AI · claude-opus-4-6',
     profileReady: '✅ פרופיל מוכן',
     setupFirst: '⚙️ הגדרה ראשונית',
@@ -42,6 +43,7 @@ const UI_TEXT = {
     langBtn: '🇺🇸 EN',
   },
   en: {
+    headerTitle: 'Smart Advertising Assistant',
     subtitle: 'Powered by Claude AI · claude-opus-4-6',
     profileReady: '✅ Profile Ready',
     setupFirst: '⚙️ Initial Setup',
@@ -71,28 +73,34 @@ const PLAN_LABELS = {
   bundle_business: { label: 'Bundle Business', color: '#f59e0b' },
 };
 
-/**
- * AdvertisingAgent chat component.
- *
- * Props:
- *   language        — 'he' | 'en'  (controlled by parent AdvertisingPage)
- *   onLanguageChange — callback(newLang) to notify parent when user toggles
- */
-export default function AdvertisingAgent({ language = 'he', onLanguageChange }) {
+// Detect if a message is still the auto-generated welcome (no real conversation yet)
+function isOnlyWelcome(msgs) {
+  return msgs.length === 1 && msgs[0].role === 'assistant';
+}
+
+export default function AdvertisingAgent({ language: langProp, onLanguageChange }) {
   const { token, user } = useAuth();
+
+  // Language: controlled by parent if langProp is provided, otherwise self-managed
+  const [langInternal, setLangInternal] = useState(
+    () => localStorage.getItem('adv_lang') || 'he'
+  );
+  const language = langProp !== undefined ? langProp : langInternal;
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [plan, setPlan] = useState('free');
+  // Track whether history came from server (real conversation) vs just welcome
+  const [hasRealHistory, setHasRealHistory] = useState(false);
   const messagesEndRef = useRef(null);
+  const userNameRef = useRef('');
 
-  // Derived UI strings — always in sync with the current language prop
   const t = UI_TEXT[language] || UI_TEXT.he;
 
-  // Authenticated fetch helper
-  const authFetch = (url, opts = {}) =>
+  const authFetch = useCallback((url, opts = {}) =>
     fetch(url, {
       ...opts,
       headers: {
@@ -100,12 +108,11 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
         Authorization: `Bearer ${token}`,
         ...(opts.headers || {}),
       },
-    });
+    }), [token]);
 
   // Load profile, plan and history on mount
   useEffect(() => {
     if (!token) return;
-
     Promise.all([
       authFetch(`${API_BASE}/profile`).then(r => r.json()).catch(() => ({})),
       authFetch(`${API_BASE}/plan`).then(r => r.json()).catch(() => ({})),
@@ -115,25 +122,36 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
         setOnboardingComplete(true);
         setBusinessName(profileData.business_name || '');
       }
-
       if (planData.plan) setPlan(planData.plan);
 
-      const history = historyData.history || [];
+      const history = (historyData.history || [])
+        .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' }))
+        .filter(m => m.content);
+
+      const name = user?.name ? ` ${user.name}` : '';
+      userNameRef.current = name;
+
       if (history.length > 0) {
-        setMessages(
-          history
-            .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' }))
-            .filter(m => m.content),
-        );
+        setMessages(history);
+        setHasRealHistory(true);
       } else {
-        const name = user?.name ? ` ${user.name}` : '';
         setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
+        setHasRealHistory(false);
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Scroll to bottom on new messages
+  // When language changes, update welcome message ONLY if no real conversation started yet
+  useEffect(() => {
+    setMessages(prev => {
+      if (isOnlyWelcome(prev) && !hasRealHistory) {
+        return [{ role: 'assistant', content: (UI_TEXT[language] || UI_TEXT.he).welcomeNew(userNameRef.current) }];
+      }
+      return prev;
+    });
+  }, [language, hasRealHistory]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -143,6 +161,7 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
     if (!msgText.trim() || loading) return;
 
     setMessages(prev => [...prev, { role: 'user', content: msgText }]);
+    setHasRealHistory(true);
     setInput('');
     setLoading(true);
 
@@ -185,8 +204,14 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
 
   const toggleLanguage = () => {
     const next = language === 'he' ? 'en' : 'he';
-    // Notify parent — parent owns the state, so this causes an immediate re-render of everything
+    // 1. Update internal state (self-managed mode)
+    setLangInternal(next);
+    // 2. Persist to localStorage
+    localStorage.setItem('adv_lang', next);
+    // 3. Notify parent via prop (controlled mode)
     if (onLanguageChange) onLanguageChange(next);
+    // 4. Fire custom event so AdvertisingPage title can update even without prop wiring
+    window.dispatchEvent(new CustomEvent('adv_lang_change', { detail: next }));
   };
 
   const resetProfile = async () => {
@@ -194,6 +219,7 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
     await authFetch(`${API_BASE}/profile`, { method: 'DELETE' });
     setOnboardingComplete(false);
     setBusinessName('');
+    setHasRealHistory(false);
     setMessages([{ role: 'assistant', content: t.resetMsg }]);
   };
 
@@ -203,8 +229,7 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
     wrap: {
       display: 'flex', flexDirection: 'column', height: '100%',
       background: '#0a0a14', fontFamily: '"Segoe UI", Arial, sans-serif',
-      direction: t.dir,
-      borderRadius: '16px', overflow: 'hidden',
+      direction: t.dir, borderRadius: '16px', overflow: 'hidden',
     },
     header: {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -222,8 +247,7 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
       borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
     },
     planBadge: {
-      background: `${planInfo.color}22`,
-      color: planInfo.color,
+      background: `${planInfo.color}22`, color: planInfo.color,
       border: `1px solid ${planInfo.color}`,
       borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
     },
@@ -245,18 +269,20 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
       display: 'flex', flexDirection: 'column', gap: '12px',
     },
     userBubble: {
-      alignSelf: 'flex-start', background: '#1e1e3a', color: '#e2e8f0',
+      alignSelf: language === 'he' ? 'flex-start' : 'flex-end',
+      background: '#1e1e3a', color: '#e2e8f0',
       padding: '10px 14px', borderRadius: '16px 16px 4px 16px',
       maxWidth: '78%', lineHeight: 1.6, fontSize: '14px',
     },
     aiBubble: {
-      alignSelf: 'flex-end', background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
+      alignSelf: language === 'he' ? 'flex-end' : 'flex-start',
+      background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
       color: 'white', padding: '10px 14px', borderRadius: '16px 16px 16px 4px',
       maxWidth: '85%', lineHeight: 1.6, fontSize: '14px', whiteSpace: 'pre-wrap',
     },
     loadingBubble: {
-      alignSelf: 'flex-end', background: '#1e1e3a',
-      padding: '12px 18px', borderRadius: '16px',
+      alignSelf: language === 'he' ? 'flex-end' : 'flex-start',
+      background: '#1e1e3a', padding: '12px 18px', borderRadius: '16px',
       display: 'flex', gap: '5px', alignItems: 'center',
     },
     dot: {
@@ -305,8 +331,7 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
           <span style={{ fontSize: '28px' }}>🚀</span>
           <div style={s.headerInfo}>
             <h2 style={s.headerTitle}>
-              {language === 'he' ? 'עוזר פרסום חכם' : 'Smart Advertising Assistant'}
-              {businessName ? ` | ${businessName}` : ''}
+              {t.headerTitle}{businessName ? ` | ${businessName}` : ''}
             </h2>
             <p style={s.headerSub}>{t.subtitle}</p>
           </div>
@@ -352,7 +377,7 @@ export default function AdvertisingAgent({ language = 'he', onLanguageChange }) 
             {[0, 0.2, 0.4].map((delay, i) => (
               <span key={i} style={{ ...s.dot, animationDelay: `${delay}s` }} />
             ))}
-            <span style={{ color: '#a5b4fc', fontSize: '12px', marginRight: '6px' }}>
+            <span style={{ color: '#a5b4fc', fontSize: '12px', marginInlineStart: '6px' }}>
               {t.thinking}
             </span>
           </div>
