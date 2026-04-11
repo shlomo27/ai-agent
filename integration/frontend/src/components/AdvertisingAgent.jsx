@@ -3,14 +3,57 @@ import { useAuth } from '../context/AuthContext';
 
 const API_BASE = '/api/advertising';
 
-const QUICK_ACTIONS = [
-  { label: '🚀 התחל פרסום', msg: 'אני רוצה להתחיל לפרסם את העסק שלי ברשתות החברתיות' },
-  { label: '📊 ניתוח ביצועים', msg: 'תראה לי ניתוח ביצועים של הפרסום שלי' },
-  { label: '📅 לוח תוכן', msg: 'צור לי לוח תוכן לחודש הקרוב' },
-  { label: '🎯 קמפיין ממומן', msg: 'אני רוצה להקים קמפיין פרסום ממומן' },
-  { label: '💡 המלצות', msg: 'מה הפלטפורמות הטובות ביותר בשבילי?' },
-  { label: '✍️ צור פוסט', msg: 'עזור לי לכתוב פוסט מושלם לרשתות החברתיות' },
-];
+const QUICK_ACTIONS = {
+  he: [
+    { label: '🚀 התחל פרסום', msg: 'אני רוצה להתחיל לפרסם את העסק שלי ברשתות החברתיות' },
+    { label: '📊 ניתוח ביצועים', msg: 'תראה לי ניתוח ביצועים של הפרסום שלי' },
+    { label: '📅 לוח תוכן', msg: 'צור לי לוח תוכן לחודש הקרוב' },
+    { label: '🎯 קמפיין ממומן', msg: 'אני רוצה להקים קמפיין פרסום ממומן' },
+    { label: '💡 המלצות', msg: 'מה הפלטפורמות הטובות ביותר בשבילי?' },
+    { label: '✍️ צור פוסט', msg: 'עזור לי לכתוב פוסט מושלם לרשתות החברתיות' },
+  ],
+  en: [
+    { label: '🚀 Start Publishing', msg: 'I want to start publishing my business on social media' },
+    { label: '📊 Performance Analysis', msg: 'Show me my advertising performance analysis' },
+    { label: '📅 Content Calendar', msg: 'Create a content calendar for next month' },
+    { label: '🎯 Paid Campaign', msg: 'I want to set up a paid advertising campaign' },
+    { label: '💡 Recommendations', msg: 'What are the best platforms for my business?' },
+    { label: '✍️ Create Post', msg: 'Help me write a perfect social media post' },
+  ],
+};
+
+const UI_TEXT = {
+  he: {
+    title: 'עוזר פרסום חכם',
+    subtitle: 'מופעל על ידי Claude AI · claude-opus-4-6',
+    profileReady: '✅ פרופיל מוכן',
+    setupFirst: '⚙️ הגדרה ראשונית',
+    reset: 'איפוס',
+    thinking: 'Claude חושב...',
+    placeholder: 'כתוב הודעה... (Enter לשליחה, Shift+Enter לשורה חדשה)',
+    send: 'שלח ➤',
+    error: '❌ שגיאה בחיבור לעוזר. נסה שוב.',
+    welcomeNew: (name) => `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
+    resetConfirm: 'האם לאפס את פרופיל העסק ולהתחיל מחדש?',
+    resetMsg: 'הפרופיל אופס. בוא נתחיל מחדש! ספר לי על העסק שלך.',
+    dir: 'rtl',
+  },
+  en: {
+    title: 'Smart Advertising Assistant',
+    subtitle: 'Powered by Claude AI · claude-opus-4-6',
+    profileReady: '✅ Profile Ready',
+    setupFirst: '⚙️ Initial Setup',
+    reset: 'Reset',
+    thinking: 'Claude thinking...',
+    placeholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
+    send: 'Send ➤',
+    error: '❌ Connection error. Please try again.',
+    welcomeNew: (name) => `Hello${name}! 👋 I'm **Mefaresem** - the smart advertising assistant of ilmariai.com.\n\nI can see this is our first time together - great! 🎉\n\nTo work smartly and accurately, I'll need to get to know your business a little.\n\n**Are you ready to start the onboarding process?**`,
+    resetConfirm: 'Reset the business profile and start over?',
+    resetMsg: 'Profile reset. Let\'s start fresh!',
+    dir: 'ltr',
+  },
+};
 
 const PLAN_LABELS = {
   free:            { label: 'Free',            color: '#6b7280' },
@@ -28,6 +71,7 @@ export default function AdvertisingAgent() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [language, setLanguage] = useState(() => localStorage.getItem('adv_lang') || 'he');
   const [businessName, setBusinessName] = useState('');
   const [plan, setPlan] = useState('free');
   const messagesEndRef = useRef(null);
@@ -71,12 +115,10 @@ export default function AdvertisingAgent() {
           content: typeof m.content === 'string' ? m.content : '',
         })).filter(m => m.content));
       } else {
-        // First time — guided welcome
+        // First time — guided welcome (language-aware)
         const name = user?.name ? ` ${user.name}` : '';
-        setMessages([{
-          role: 'assistant',
-          content: `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nאני יכול לעזור לך לפרסם בכל הרשתות החברתיות, ליצור תוכן, לנהל קמפיינים ולגייס לקוחות.\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
-        }]);
+        const t = UI_TEXT[language] || UI_TEXT.he;
+        setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
       }
     });
   }, [token]);
@@ -96,7 +138,7 @@ export default function AdvertisingAgent() {
     try {
       const res = await authFetch(`${API_BASE}/chat`, {
         method: 'POST',
-        body: JSON.stringify({ message: msgText }),
+        body: JSON.stringify({ message: msgText, language }),
       });
 
       if (res.status === 429) {
@@ -130,23 +172,29 @@ export default function AdvertisingAgent() {
     }
   };
 
+  const toggleLanguage = () => {
+    const next = language === 'he' ? 'en' : 'he';
+    setLanguage(next);
+    localStorage.setItem('adv_lang', next);
+  };
+
   const resetProfile = async () => {
-    if (!confirm('האם לאפס את פרופיל העסק ולהתחיל מחדש?')) return;
+    const t = UI_TEXT[language] || UI_TEXT.he;
+    if (!confirm(t.resetConfirm)) return;
     await authFetch(`${API_BASE}/profile`, { method: 'DELETE' });
     setOnboardingComplete(false);
     setBusinessName('');
-    setMessages([{
-      role: 'assistant',
-      content: 'הפרופיל אופס. בוא נתחיל מחדש! ספר לי על העסק שלך.',
-    }]);
+    setMessages([{ role: 'assistant', content: t.resetMsg }]);
   };
 
+  const t = UI_TEXT[language] || UI_TEXT.he;
   const planInfo = PLAN_LABELS[plan] || PLAN_LABELS.free;
 
   const s = {
     wrap: {
       display: 'flex', flexDirection: 'column', height: '100%',
-      background: '#0a0a14', fontFamily: '"Segoe UI", Arial, sans-serif', direction: 'rtl',
+      background: '#0a0a14', fontFamily: '"Segoe UI", Arial, sans-serif',
+      direction: t.dir,
       borderRadius: '16px', overflow: 'hidden',
     },
     header: {
@@ -213,8 +261,13 @@ export default function AdvertisingAgent() {
     textarea: {
       flex: 1, background: '#1e1e3a', border: '1px solid #2d2d5e', color: '#e2e8f0',
       borderRadius: '10px', padding: '10px 13px', fontSize: '14px',
-      resize: 'none', direction: 'rtl', outline: 'none', fontFamily: 'inherit',
+      resize: 'none', direction: t.dir, outline: 'none', fontFamily: 'inherit',
       lineHeight: 1.5,
+    },
+    langToggle: {
+      background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
+      color: 'white', borderRadius: '8px', padding: '4px 10px',
+      cursor: 'pointer', fontSize: '12px', fontWeight: 600,
     },
     sendBtn: {
       background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)', color: 'white',
@@ -243,25 +296,29 @@ export default function AdvertisingAgent() {
           <span style={{ fontSize: '28px' }}>🚀</span>
           <div style={s.headerInfo}>
             <h2 style={s.headerTitle}>
-              עוזר פרסום חכם {businessName ? `| ${businessName}` : ''}
+              {t.title} {businessName ? `| ${businessName}` : ''}
             </h2>
-            <p style={s.headerSub}>מופעל על ידי Claude AI · claude-opus-4-6</p>
+            <p style={s.headerSub}>{t.subtitle}</p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Language toggle */}
+          <button style={s.langToggle} onClick={toggleLanguage}>
+            {language === 'he' ? '🇺🇸 EN' : '🇮🇱 עב'}
+          </button>
           <span style={s.planBadge}>{planInfo.label}</span>
           <span style={s.statusBadge}>
-            {onboardingComplete ? '✅ פרופיל מוכן' : '⚙️ הגדרה ראשונית'}
+            {onboardingComplete ? t.profileReady : t.setupFirst}
           </span>
           {onboardingComplete && (
-            <button style={s.resetBtn} onClick={resetProfile}>איפוס</button>
+            <button style={s.resetBtn} onClick={resetProfile}>{t.reset}</button>
           )}
         </div>
       </div>
 
       {/* Quick Actions */}
       <div style={s.quickActions}>
-        {QUICK_ACTIONS.map(a => (
+        {(QUICK_ACTIONS[language] || QUICK_ACTIONS.he).map(a => (
           <button
             key={a.label}
             className="qbtn"
@@ -287,7 +344,7 @@ export default function AdvertisingAgent() {
               <span key={i} style={{ ...s.dot, animationDelay: `${delay}s` }} />
             ))}
             <span style={{ color: '#a5b4fc', fontSize: '12px', marginRight: '6px' }}>
-              Claude חושב...
+              {t.thinking}
             </span>
           </div>
         )}
@@ -306,7 +363,7 @@ export default function AdvertisingAgent() {
               sendMessage();
             }
           }}
-          placeholder="כתוב הודעה... (Enter לשליחה, Shift+Enter לשורה חדשה)"
+          placeholder={t.placeholder}
           rows={2}
           disabled={loading}
         />
@@ -316,7 +373,7 @@ export default function AdvertisingAgent() {
           onClick={() => sendMessage()}
           disabled={loading || !input.trim()}
         >
-          שלח ➤
+          {t.send}
         </button>
       </div>
     </div>

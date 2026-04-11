@@ -69,12 +69,18 @@ class RateLimiter:
         ]
 
         if len(messages) >= daily_limit:
-            return False, f"הגעת למגבלה היומית ({daily_limit} הודעות). שדרג תוכנית לקבלת יותר הודעות."
+            # Show exact reset time
+            oldest = datetime.fromisoformat(messages[0])
+            reset_at = oldest + timedelta(days=1)
+            reset_str = reset_at.strftime("%H:%M")
+            return False, f"הגעת למגבלה היומית ({daily_limit} הודעות). המכסה תתחדש ב-{reset_str} (בעוד {int((reset_at - now).total_seconds() // 60)} דקות)."
 
         last_hour = [m for m in messages if datetime.fromisoformat(m) > now - timedelta(hours=1)]
         if len(last_hour) >= hourly_limit:
-            reset_in = 60 - (now - datetime.fromisoformat(last_hour[0])).seconds // 60
-            return False, f"יותר מדי הודעות בשעה האחרונה ({hourly_limit} מקסימום). נסה שוב בעוד {reset_in} דקות."
+            oldest_hour = datetime.fromisoformat(last_hour[0])
+            reset_at = oldest_hour + timedelta(hours=1)
+            reset_str = reset_at.strftime("%H:%M")
+            return False, f"יותר מדי הודעות בשעה האחרונה ({hourly_limit} מקסימום). המכסה תתחדש ב-{reset_str}."
 
         return True, ""
 

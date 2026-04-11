@@ -71,6 +71,7 @@ async def chat(request: ChatRequest):
     """Chat with the AI advertising agent."""
     session_id = request.session_id or str(uuid.uuid4())
     plan = request.plan or "free"
+    language = request.language or "he"
     agent = _get_or_create_agent(session_id)
 
     # Rate limiting check (plan-aware)
@@ -79,7 +80,12 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=429, detail=reason)
 
     try:
-        response = await agent.chat(request.message)
+        # Prepend language instruction if English selected
+        message = request.message
+        if language == "en":
+            message = f"[RESPOND IN ENGLISH ONLY] {message}"
+
+        response = await agent.chat(message)
         RateLimiter.record(session_id)
         profile = ProfileManager.get_or_create(session_id)
         usage = RateLimiter.get_usage(session_id, plan=plan)

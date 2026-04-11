@@ -9,7 +9,8 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
-    plan: Optional[str] = "free"  # marketing plan: free / basic / pro / business / bundle_starter / bundle_pro / bundle_business
+    plan: Optional[str] = "free"   # marketing plan: free / basic / pro / business / bundle_*
+    language: Optional[str] = "he" # "he" = Hebrew, "en" = English
 
 
 class ChatResponse(BaseModel):

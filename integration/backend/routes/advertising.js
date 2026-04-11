@@ -81,6 +81,7 @@ router.post('/chat', (req, res) => {
     ...req.body,
     session_id: req.advertising.userId,   // use MongoDB _id as stable session key
     plan: req.advertising.plan,
+    language: req.body.language || 'he',  // pass language preference
   };
   proxyToAgent('/api/chat', 'POST', body, res);
 });
