@@ -167,7 +167,11 @@ router.get('/plan', (req, res) => {
   });
 });
 
-// ─── Clear chat history ───────────────────────────────────────────────────────
+// ─── Chat history ─────────────────────────────────────────────────────────────
+router.get('/chat/history', (req, res) =>
+  proxyToAgent(`/api/chat/${req.advertising.userId}/history`, 'GET', null, res)
+);
+
 router.delete('/chat/history', (req, res) =>
   proxyToAgent(`/api/chat/${req.advertising.userId}`, 'DELETE', null, res)
 );

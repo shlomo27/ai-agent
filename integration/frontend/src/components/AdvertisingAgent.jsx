@@ -43,29 +43,42 @@ export default function AdvertisingAgent() {
       },
     });
 
-  // Load profile + plan on mount
+  // Load profile, plan and history on mount
   useEffect(() => {
     if (!token) return;
 
-    authFetch(`${API_BASE}/profile`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.onboarding_complete) {
-          setOnboardingComplete(true);
-          setBusinessName(data.business_name || '');
-        }
-      })
-      .catch(() => {});
+    // Load profile + plan in parallel
+    Promise.all([
+      authFetch(`${API_BASE}/profile`).then(r => r.json()).catch(() => ({})),
+      authFetch(`${API_BASE}/plan`).then(r => r.json()).catch(() => ({})),
+      authFetch(`${API_BASE}/chat/history`).then(r => r.json()).catch(() => ({ history: [] })),
+    ]).then(([profileData, planData, historyData]) => {
+      // Apply profile
+      if (profileData.onboarding_complete) {
+        setOnboardingComplete(true);
+        setBusinessName(profileData.business_name || '');
+      }
 
-    authFetch(`${API_BASE}/plan`)
-      .then(r => r.json())
-      .then(data => { if (data.plan) setPlan(data.plan); })
-      .catch(() => {});
+      // Apply plan
+      if (planData.plan) setPlan(planData.plan);
 
-    setMessages([{
-      role: 'assistant',
-      content: `שלום ${user?.name ? user.name : ''}! אני עוזר הפרסום החכם שלך 🚀\n\nאני פועל על בסיס Claude AI ויכול לעזור לך לפרסם בכל הרשתות החברתיות באופן חכם וממוקד.\n\nאם זו הפעם הראשונה שלנו - אשאל אותך כמה שאלות כדי להכיר את העסק שלך.\n\nמה תרצה לעשות?`,
-    }]);
+      // Load history or show welcome
+      const history = historyData.history || [];
+      if (history.length > 0) {
+        // Returning user — show saved conversation
+        setMessages(history.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : '',
+        })).filter(m => m.content));
+      } else {
+        // First time — guided welcome
+        const name = user?.name ? ` ${user.name}` : '';
+        setMessages([{
+          role: 'assistant',
+          content: `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nאני יכול לעזור לך לפרסם בכל הרשתות החברתיות, ליצור תוכן, לנהל קמפיינים ולגייס לקוחות.\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
+        }]);
+      }
+    });
   }, [token]);
 
   useEffect(() => {

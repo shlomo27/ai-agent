@@ -327,6 +327,14 @@ async def get_weekly_report(session_id: str):
     )
 
 
+@app.get("/api/chat/{session_id}/history")
+async def get_chat_history(session_id: str):
+    """Get conversation history for a session."""
+    from storage.history_manager import HistoryManager
+    history = HistoryManager.load(session_id)
+    return {"history": history, "count": len(history)}
+
+
 @app.delete("/api/chat/{session_id}")
 async def clear_chat_history(session_id: str):
     """Clear conversation history for a session."""
