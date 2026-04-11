@@ -24,7 +24,6 @@ const QUICK_ACTIONS = {
 
 const UI_TEXT = {
   he: {
-    title: 'עוזר פרסום חכם',
     subtitle: 'מופעל על ידי Claude AI · claude-opus-4-6',
     profileReady: '✅ פרופיל מוכן',
     setupFirst: '⚙️ הגדרה ראשונית',
@@ -35,13 +34,14 @@ const UI_TEXT = {
     error: '❌ שגיאה בחיבור לעוזר. נסה שוב.',
     noResponse: 'לא התקבלה תשובה',
     rateLimited: 'הגעת למגבלת ההודעות. שדרג תוכנית לקבלת יותר הודעות.',
-    welcomeNew: (name) => `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
+    welcomeNew: (name) =>
+      `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
     resetConfirm: 'האם לאפס את פרופיל העסק ולהתחיל מחדש?',
     resetMsg: 'הפרופיל אופס. בוא נתחיל מחדש! ספר לי על העסק שלך.',
     dir: 'rtl',
+    langBtn: '🇺🇸 EN',
   },
   en: {
-    title: 'Smart Advertising Assistant',
     subtitle: 'Powered by Claude AI · claude-opus-4-6',
     profileReady: '✅ Profile Ready',
     setupFirst: '⚙️ Initial Setup',
@@ -52,10 +52,12 @@ const UI_TEXT = {
     error: '❌ Connection error. Please try again.',
     noResponse: 'No response received',
     rateLimited: 'Message limit reached. Upgrade your plan for more messages.',
-    welcomeNew: (name) => `Hello${name}! 👋 I'm **Mefaresem** - the smart advertising assistant of ilmariai.com.\n\nI can see this is our first time together - great! 🎉\n\nTo work smartly and accurately, I'll need to get to know your business a little.\n\n**Are you ready to start the onboarding process?**`,
+    welcomeNew: (name) =>
+      `Hello${name}! 👋 I'm **Mefaresem** — the smart advertising assistant of ilmariai.com.\n\nI can see this is our first time together — great! 🎉\n\nTo work smartly and accurately, I'll need to get to know your business a little.\n\n**Are you ready to start the onboarding process?**`,
     resetConfirm: 'Reset the business profile and start over?',
-    resetMsg: 'Profile reset. Let\'s start fresh!',
+    resetMsg: "Profile reset. Let's start fresh! Tell me about your business.",
     dir: 'ltr',
+    langBtn: '🇮🇱 עב',
   },
 };
 
@@ -69,16 +71,25 @@ const PLAN_LABELS = {
   bundle_business: { label: 'Bundle Business', color: '#f59e0b' },
 };
 
-export default function AdvertisingAgent() {
+/**
+ * AdvertisingAgent chat component.
+ *
+ * Props:
+ *   language        — 'he' | 'en'  (controlled by parent AdvertisingPage)
+ *   onLanguageChange — callback(newLang) to notify parent when user toggles
+ */
+export default function AdvertisingAgent({ language = 'he', onLanguageChange }) {
   const { token, user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
-  const [language, setLanguage] = useState(() => localStorage.getItem('adv_lang') || 'he');
   const [businessName, setBusinessName] = useState('');
   const [plan, setPlan] = useState('free');
   const messagesEndRef = useRef(null);
+
+  // Derived UI strings — always in sync with the current language prop
+  const t = UI_TEXT[language] || UI_TEXT.he;
 
   // Authenticated fetch helper
   const authFetch = (url, opts = {}) =>
@@ -95,38 +106,34 @@ export default function AdvertisingAgent() {
   useEffect(() => {
     if (!token) return;
 
-    // Load profile + plan in parallel
     Promise.all([
       authFetch(`${API_BASE}/profile`).then(r => r.json()).catch(() => ({})),
       authFetch(`${API_BASE}/plan`).then(r => r.json()).catch(() => ({})),
       authFetch(`${API_BASE}/chat/history`).then(r => r.json()).catch(() => ({ history: [] })),
     ]).then(([profileData, planData, historyData]) => {
-      // Apply profile
       if (profileData.onboarding_complete) {
         setOnboardingComplete(true);
         setBusinessName(profileData.business_name || '');
       }
 
-      // Apply plan
       if (planData.plan) setPlan(planData.plan);
 
-      // Load history or show welcome
       const history = historyData.history || [];
       if (history.length > 0) {
-        // Returning user — show saved conversation
-        setMessages(history.map(m => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content : '',
-        })).filter(m => m.content));
+        setMessages(
+          history
+            .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' }))
+            .filter(m => m.content),
+        );
       } else {
-        // First time — guided welcome (language-aware)
         const name = user?.name ? ` ${user.name}` : '';
-        const t = UI_TEXT[language] || UI_TEXT.he;
         setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -178,14 +185,11 @@ export default function AdvertisingAgent() {
 
   const toggleLanguage = () => {
     const next = language === 'he' ? 'en' : 'he';
-    setLanguage(next);
-    localStorage.setItem('adv_lang', next);
-    // Notify parent page (AdvertisingPage) so its title/subtitle also updates
-    window.dispatchEvent(new CustomEvent('adv_lang_change', { detail: next }));
+    // Notify parent — parent owns the state, so this causes an immediate re-render of everything
+    if (onLanguageChange) onLanguageChange(next);
   };
 
   const resetProfile = async () => {
-    const t = UI_TEXT[language] || UI_TEXT.he;
     if (!confirm(t.resetConfirm)) return;
     await authFetch(`${API_BASE}/profile`, { method: 'DELETE' });
     setOnboardingComplete(false);
@@ -193,7 +197,6 @@ export default function AdvertisingAgent() {
     setMessages([{ role: 'assistant', content: t.resetMsg }]);
   };
 
-  const t = UI_TEXT[language] || UI_TEXT.he;
   const planInfo = PLAN_LABELS[plan] || PLAN_LABELS.free;
 
   const s = {
@@ -302,15 +305,15 @@ export default function AdvertisingAgent() {
           <span style={{ fontSize: '28px' }}>🚀</span>
           <div style={s.headerInfo}>
             <h2 style={s.headerTitle}>
-              {t.title} {businessName ? `| ${businessName}` : ''}
+              {language === 'he' ? 'עוזר פרסום חכם' : 'Smart Advertising Assistant'}
+              {businessName ? ` | ${businessName}` : ''}
             </h2>
             <p style={s.headerSub}>{t.subtitle}</p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {/* Language toggle */}
           <button style={s.langToggle} onClick={toggleLanguage}>
-            {language === 'he' ? '🇺🇸 EN' : '🇮🇱 עב'}
+            {t.langBtn}
           </button>
           <span style={s.planBadge}>{planInfo.label}</span>
           <span style={s.statusBadge}>

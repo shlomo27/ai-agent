@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AdvertisingAgent from '../components/AdvertisingAgent';
 import './AdvertisingPage.css';
 
@@ -16,14 +16,13 @@ const PAGE_TEXT = {
 };
 
 export default function AdvertisingPage() {
+  // Language state lives HERE — single source of truth for the whole page
   const [lang, setLang] = useState(() => localStorage.getItem('adv_lang') || 'he');
 
-  // Listen for language changes dispatched by AdvertisingAgent
-  useEffect(() => {
-    const handler = (e) => setLang(e.detail || 'he');
-    window.addEventListener('adv_lang_change', handler);
-    return () => window.removeEventListener('adv_lang_change', handler);
-  }, []);
+  const handleLangChange = (newLang) => {
+    setLang(newLang);
+    localStorage.setItem('adv_lang', newLang);
+  };
 
   const t = PAGE_TEXT[lang] || PAGE_TEXT.he;
 
@@ -34,7 +33,8 @@ export default function AdvertisingPage() {
         <p>{t.subtitle}</p>
       </div>
       <div className="adv-page-content">
-        <AdvertisingAgent />
+        {/* Pass language and the setter down — component doesn't own language state */}
+        <AdvertisingAgent language={lang} onLanguageChange={handleLangChange} />
       </div>
     </div>
   );
