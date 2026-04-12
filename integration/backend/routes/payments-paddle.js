@@ -76,6 +76,9 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
   }
 }
 
+// ─── AIBuilder credits per plan ───────────────────────────────────────────────
+const AIBUILDER_CREDITS = { starter: 100, pro: 350 };
+
 // ─── Determine which plan field to update based on plan name ──────────────────
 function getPlanUpdates(planName) {
   if (!planName) return {};
@@ -83,16 +86,27 @@ function getPlanUpdates(planName) {
   if (planName.startsWith('bundle_')) {
     // Bundle: includes both AIBuilder + Marketing
     const marketingLevel = planName.replace('bundle_', ''); // starter/pro/business
-    return {
+    const aiLevel = marketingLevel === 'starter' ? 'starter' : 'pro';
+    const updates = {
       marketing_plan: planName,
-      plan: marketingLevel === 'starter' ? 'starter' : marketingLevel === 'pro' ? 'pro' : 'pro',
+      plan: aiLevel,
     };
+    if (AIBUILDER_CREDITS[aiLevel]) {
+      updates.credits = AIBUILDER_CREDITS[aiLevel];
+      updates.creditsLastReset = new Date();
+    }
+    return updates;
   }
 
   if (planName.startsWith('aibuilder_')) {
     // AIBuilder only
     const level = planName.replace('aibuilder_', ''); // starter/pro
-    return { plan: level };
+    const updates = { plan: level };
+    if (AIBUILDER_CREDITS[level]) {
+      updates.credits = AIBUILDER_CREDITS[level];
+      updates.creditsLastReset = new Date();
+    }
+    return updates;
   }
 
   // Marketing only
