@@ -31,7 +31,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const User = require('../models/User');
-const requireAuth = require('../middleware/auth');
+const { authMiddleware: requireAuth } = require('./auth');
 
 const PADDLE_API_KEY = process.env.PADDLE_API_KEY || '';
 const PADDLE_WEBHOOK_SECRET = process.env.PADDLE_WEBHOOK_SECRET || '';
