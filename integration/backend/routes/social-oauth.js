@@ -41,7 +41,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const User = require('../models/User');
-const requireAuth = require('../middleware/auth');
+const { authMiddleware: requireAuth } = require('./auth');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://ilmariai.com';
 
