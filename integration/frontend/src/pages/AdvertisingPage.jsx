@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdvertisingAgent from '../components/AdvertisingAgent';
+import SocialConnect from '../components/SocialConnect';
 import './AdvertisingPage.css';
 
 const PAGE_TEXT = {
@@ -36,6 +37,9 @@ export default function AdvertisingPage() {
       <div className="adv-page-header">
         <h1>{t.title}</h1>
         <p>{t.subtitle}</p>
+      </div>
+      <div className="adv-page-connect">
+        <SocialConnect language={lang} />
       </div>
       <div className="adv-page-content">
         <AdvertisingAgent language={lang} onLanguageChange={handleLangChange} />
