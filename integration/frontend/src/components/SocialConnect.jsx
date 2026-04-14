@@ -165,7 +165,11 @@ export default function SocialConnect({ language = 'he' }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+        gap: 10,
+      }}>
         {PLATFORMS.map(({ id, label, icon, color }) => {
           const info = status[id];
           const isConnected = info?.connected;

@@ -1,19 +1,22 @@
 .adv-page {
-  min-height: 100vh;
+  height: 100vh;
   background: #080812;
-  padding: 24px;
-  direction: rtl;
+  padding: 24px 24px 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .adv-page-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   color: white;
+  flex-shrink: 0;
 }
 
 .adv-page-header h1 {
-  font-size: 32px;
-  margin: 0 0 8px;
+  font-size: 28px;
+  margin: 0 0 6px;
   background: linear-gradient(135deg, #6c3fe8, #3f8cf5);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -22,17 +25,22 @@
 
 .adv-page-header p {
   color: #8888aa;
-  font-size: 16px;
+  font-size: 14px;
   margin: 0;
 }
 
 .adv-page-connect {
   max-width: 900px;
-  margin: 0 auto 16px;
+  width: 100%;
+  margin: 0 auto 12px;
+  flex-shrink: 0;
 }
 
 .adv-page-content {
-  height: calc(100vh - 260px);
+  flex: 1;
+  min-height: 0;
   max-width: 800px;
+  width: 100%;
   margin: 0 auto;
+  padding-bottom: 24px;
 }
