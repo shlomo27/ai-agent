@@ -76,12 +76,24 @@ async function loadUser(req, res, next) {
 router.use(requireAuth, loadUser);
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
-router.post('/chat', (req, res) => {
+router.post('/chat', async (req, res) => {
+  // Fetch user's connected social tokens from MongoDB
+  let socialTokens = {};
+  try {
+    const user = await User.findById(req.advertising.userId).select('socialTokens');
+    for (const t of (user?.socialTokens || [])) {
+      if (t.accessToken) socialTokens[t.platform] = t.accessToken;
+    }
+  } catch (e) {
+    console.error('Failed to fetch social tokens:', e.message);
+  }
+
   const body = {
     ...req.body,
     session_id: req.advertising.userId,   // use MongoDB _id as stable session key
     plan: req.advertising.plan,
     language: req.body.language || 'he',  // pass language preference
+    social_tokens: socialTokens,          // per-user OAuth tokens
   };
   proxyToAgent('/api/chat', 'POST', body, res);
 });

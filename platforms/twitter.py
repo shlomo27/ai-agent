@@ -20,14 +20,15 @@ class TwitterPlatform(BasePlatform):
     platform_name = "twitter"
     BASE_URL = "https://api.twitter.com/2"
 
-    def __init__(self):
+    def __init__(self, access_token: str = ""):
+        token = access_token or config.TWITTER_BEARER_TOKEN
         super().__init__(
-            access_token=config.TWITTER_BEARER_TOKEN,
-            demo_mode=config.DEMO_MODE,
+            access_token=token,
+            demo_mode=False if access_token else config.DEMO_MODE,
         )
         self.api_key = config.TWITTER_API_KEY
         self.api_secret = config.TWITTER_API_SECRET
-        self.user_access_token = config.TWITTER_ACCESS_TOKEN
+        self.user_access_token = access_token or config.TWITTER_ACCESS_TOKEN
         self.user_access_secret = config.TWITTER_ACCESS_SECRET
         self._user_id: str = ""
 

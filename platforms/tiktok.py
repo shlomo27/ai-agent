@@ -20,10 +20,11 @@ class TikTokPlatform(BasePlatform):
     platform_name = "tiktok"
     BASE_URL = "https://open.tiktokapis.com/v2"
 
-    def __init__(self):
+    def __init__(self, access_token: str = ""):
+        token = access_token or config.TIKTOK_ACCESS_TOKEN
         super().__init__(
-            access_token=config.TIKTOK_ACCESS_TOKEN,
-            demo_mode=config.DEMO_MODE,
+            access_token=token,
+            demo_mode=False if access_token else config.DEMO_MODE,
         )
         self.client_key = config.TIKTOK_CLIENT_KEY
         self._user_open_id: str = ""

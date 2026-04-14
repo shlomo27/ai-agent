@@ -20,10 +20,11 @@ class LinkedInPlatform(BasePlatform):
     platform_name = "linkedin"
     BASE_URL = "https://api.linkedin.com/v2"
 
-    def __init__(self):
+    def __init__(self, access_token: str = ""):
+        token = access_token or config.LINKEDIN_ACCESS_TOKEN
         super().__init__(
-            access_token=config.LINKEDIN_ACCESS_TOKEN,
-            demo_mode=config.DEMO_MODE,
+            access_token=token,
+            demo_mode=False if access_token else config.DEMO_MODE,
         )
         self._person_urn: str = ""
 

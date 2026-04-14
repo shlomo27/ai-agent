@@ -20,10 +20,11 @@ class InstagramPlatform(BasePlatform):
     platform_name = "instagram"
     BASE_URL = "https://graph.instagram.com"
 
-    def __init__(self):
+    def __init__(self, access_token: str = ""):
+        token = access_token or config.INSTAGRAM_ACCESS_TOKEN
         super().__init__(
-            access_token=config.INSTAGRAM_ACCESS_TOKEN,
-            demo_mode=config.DEMO_MODE,
+            access_token=token,
+            demo_mode=False if access_token else config.DEMO_MODE,
         )
         self.account_id = config.INSTAGRAM_ACCOUNT_ID
 

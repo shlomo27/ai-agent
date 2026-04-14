@@ -79,6 +79,10 @@ async def chat(request: ChatRequest):
     if not allowed:
         raise HTTPException(status_code=429, detail=reason)
 
+    # Update platform tokens if provided (per-user OAuth tokens)
+    if request.social_tokens:
+        agent.set_platform_tokens(request.social_tokens)
+
     try:
         # Prepend language instruction if English selected
         message = request.message

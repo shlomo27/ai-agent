@@ -20,10 +20,11 @@ class FacebookPlatform(BasePlatform):
     platform_name = "facebook"
     BASE_URL = "https://graph.facebook.com/v18.0"
 
-    def __init__(self):
+    def __init__(self, access_token: str = ""):
+        token = access_token or config.FACEBOOK_ACCESS_TOKEN
         super().__init__(
-            access_token=config.FACEBOOK_ACCESS_TOKEN,
-            demo_mode=config.DEMO_MODE,
+            access_token=token,
+            demo_mode=False if access_token else config.DEMO_MODE,
         )
         self.page_id = config.FACEBOOK_PAGE_ID
         self.app_id = config.FACEBOOK_APP_ID

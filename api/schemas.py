@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     plan: Optional[str] = "free"   # marketing plan: free / basic / pro / business / bundle_*
     language: Optional[str] = "he" # "he" = Hebrew, "en" = English
+    social_tokens: Optional[Dict[str, str]] = None  # {"facebook": "token...", "instagram": "token..."}
 
 
 class ChatResponse(BaseModel):
