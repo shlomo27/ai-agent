@@ -32,6 +32,7 @@ const TEXT = {
     connecting: 'מחבר...',
     successMsg: (p) => `✅ ${p} חוברה בהצלחה!`,
     errorMsg: (e) => `❌ שגיאה: ${e}`,
+    noPlatformsBanner: '⚠️ כדי שה-AI יוכל לפרסם בשמך — חבר לפחות פלטפורמה אחת. לחץ "חבר" ליד הפלטפורמה הרצויה, אשר גישה, וה-AI יתחיל לפרסם אוטומטית.',
     dir: 'rtl',
   },
   en: {
@@ -44,6 +45,7 @@ const TEXT = {
     connecting: 'Connecting...',
     successMsg: (p) => `✅ ${p} connected successfully!`,
     errorMsg: (e) => `❌ Error: ${e}`,
+    noPlatformsBanner: '⚠️ To let the AI post on your behalf — connect at least one platform. Click "Connect" next to the platform, approve access, and the AI will start posting automatically.',
     dir: 'ltr',
   },
 };
@@ -139,11 +141,29 @@ export default function SocialConnect({ language = 'he' }) {
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const connectedCount = Object.values(status).filter(s => s?.connected).length;
+
   return (
     <div style={{ marginBottom: 24, direction: t.dir }}>
-      <h3 style={{ color: '#ccc', fontSize: 15, margin: '0 0 12px', fontWeight: 600 }}>
+      <h3 style={{ color: '#ccc', fontSize: 15, margin: '0 0 10px', fontWeight: 600 }}>
         {t.title}
       </h3>
+
+      {/* Banner when no platforms are connected */}
+      {connectedCount === 0 && (
+        <div style={{
+          background: '#1c1a08',
+          border: '1px solid #ca8a04',
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 12,
+          color: '#fbbf24',
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}>
+          {t.noPlatformsBanner}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {PLATFORMS.map(({ id, label, icon, color }) => {

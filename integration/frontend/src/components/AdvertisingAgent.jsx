@@ -36,7 +36,7 @@ const UI_TEXT = {
     noResponse: 'לא התקבלה תשובה',
     rateLimited: 'הגעת למגבלת ההודעות. שדרג תוכנית לקבלת יותר הודעות.',
     welcomeNew: (name) =>
-      `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\nכדי שאוכל לעבוד בצורה חכמה ומדויקת, אצטרך להכיר קצת את העסק שלך.\n\n**האם אתה מוכן להתחיל את תהליך ההכרות?**`,
+      `שלום${name}! 👋 אני **מפרסם** - עוזר הפרסום החכם של ilmariai.com.\n\nאני רואה שזו הפעם הראשונה שלנו ביחד - מעולה! 🎉\n\n**צעד ראשון:** חבר את הרשתות החברתיות שלך בפאנל **"חיבור פלטפורמות"** שמופיע למעלה — לחץ "חבר" ליד Facebook, Instagram או כל פלטפורמה שתרצה, ואשר גישה. זה לוקח 30 שניות בלבד.\n\n**אחרי שחיברת** — בוא נתחיל! אצטרך להכיר קצת את העסק שלך כדי שאוכל לפרסם בצורה חכמה ומדויקת.\n\n**האם אתה מוכן להתחיל?**`,
     resetConfirm: 'האם לאפס את פרופיל העסק ולהתחיל מחדש?',
     resetMsg: 'הפרופיל אופס. בוא נתחיל מחדש! ספר לי על העסק שלך.',
     dir: 'rtl',
@@ -55,7 +55,7 @@ const UI_TEXT = {
     noResponse: 'No response received',
     rateLimited: 'Message limit reached. Upgrade your plan for more messages.',
     welcomeNew: (name) =>
-      `Hello${name}! 👋 I'm **Mefaresem** — the smart advertising assistant of ilmariai.com.\n\nI can see this is our first time together — great! 🎉\n\nTo work smartly and accurately, I'll need to get to know your business a little.\n\n**Are you ready to start the onboarding process?**`,
+      `Hello${name}! 👋 I'm **Mefaresem** — the smart advertising assistant of ilmariai.com.\n\nI can see this is our first time together — great! 🎉\n\n**First step:** Connect your social media accounts using the **"Connect Platforms"** panel above — click "Connect" next to Facebook, Instagram, or any platform you want, and approve access. It takes just 30 seconds.\n\n**Once you've connected** — let's get started! I'll need to learn a bit about your business so I can post smartly and accurately.\n\n**Are you ready to begin?**`,
     resetConfirm: 'Reset the business profile and start over?',
     resetMsg: "Profile reset. Let's start fresh! Tell me about your business.",
     dir: 'ltr',
