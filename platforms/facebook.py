@@ -20,13 +20,13 @@ class FacebookPlatform(BasePlatform):
     platform_name = "facebook"
     BASE_URL = "https://graph.facebook.com/v18.0"
 
-    def __init__(self, access_token: str = ""):
+    def __init__(self, access_token: str = "", page_id: str = None):
         token = access_token or config.FACEBOOK_ACCESS_TOKEN
         super().__init__(
             access_token=token,
             demo_mode=False if access_token else config.DEMO_MODE,
         )
-        self.page_id = config.FACEBOOK_PAGE_ID
+        self.page_id = page_id or config.FACEBOOK_PAGE_ID
         self.app_id = config.FACEBOOK_APP_ID
 
     def _get_default_headers(self) -> Dict[str, str]:
@@ -37,6 +37,34 @@ class FacebookPlatform(BasePlatform):
 
     def _auth_params(self) -> Dict[str, str]:
         return {"access_token": self.access_token}
+
+    async def _resolve_page_token(self) -> tuple[str, str]:
+        """Return (page_access_token, page_id) for posting.
+
+        If we already hold a page access token and know the page_id, return them.
+        Otherwise try to exchange the user access token via /me/accounts.
+        """
+        if self.demo_mode:
+            return self.access_token, self.page_id
+
+        # Try to get page token from /me/accounts
+        try:
+            url = f"{self.BASE_URL}/me/accounts"
+            params = {"fields": "id,name,access_token", "access_token": self.access_token}
+            data = await self._request("GET", url, params=params)
+            pages = data.get("data", [])
+            if pages:
+                # Use specific page if page_id known, otherwise first page
+                page = next((p for p in pages if p["id"] == self.page_id), pages[0])
+                page_token = page.get("access_token", self.access_token)
+                resolved_page_id = page["id"]
+                logger.info(f"Resolved page token for page {resolved_page_id} ({page.get('name', '')})")
+                return page_token, resolved_page_id
+        except Exception as e:
+            logger.warning(f"Could not resolve page token via /me/accounts: {e}")
+
+        # Fall back to current token + page_id
+        return self.access_token, self.page_id
 
     async def connect(self) -> PlatformAccount:
         """Connect to Facebook and return page account info."""
@@ -67,7 +95,6 @@ class FacebookPlatform(BasePlatform):
         **kwargs,
     ) -> SocialPost:
         """Post to a Facebook page or group."""
-        post_target = target_id or self.page_id
         if self.demo_mode:
             return SocialPost(
                 platform="facebook",
@@ -77,8 +104,10 @@ class FacebookPlatform(BasePlatform):
                 post_url=f"https://facebook.com/demo_post",
                 posted_at=datetime.now(),
             )
+        page_token, resolved_page_id = await self._resolve_page_token()
+        post_target = target_id or resolved_page_id or self.page_id
         url = f"{self.BASE_URL}/{post_target}/feed"
-        payload: Dict[str, Any] = {"message": text, **self._auth_params()}
+        payload: Dict[str, Any] = {"message": text, "access_token": page_token}
         if media_urls:
             payload["link"] = media_urls[0]
         data = await self._request("POST", url, json=payload)

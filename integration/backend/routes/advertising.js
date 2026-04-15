@@ -79,10 +79,14 @@ router.use(requireAuth, loadUser);
 router.post('/chat', async (req, res) => {
   // Fetch user's connected social tokens from MongoDB
   let socialTokens = {};
+  let socialPageIds = {};
   try {
     const user = await User.findById(req.advertising.userId).select('socialTokens');
     for (const t of (user?.socialTokens || [])) {
-      if (t.accessToken) socialTokens[t.platform] = t.accessToken;
+      if (t.accessToken) {
+        socialTokens[t.platform] = t.accessToken;
+        if (t.pageId) socialPageIds[t.platform] = t.pageId;
+      }
     }
   } catch (e) {
     console.error('Failed to fetch social tokens:', e.message);
@@ -94,6 +98,7 @@ router.post('/chat', async (req, res) => {
     plan: req.advertising.plan,
     language: req.body.language || 'he',  // pass language preference
     social_tokens: socialTokens,          // per-user OAuth tokens
+    social_page_ids: socialPageIds,       // page IDs for Facebook/Instagram
   };
   proxyToAgent('/api/chat', 'POST', body, res);
 });

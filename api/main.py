@@ -81,7 +81,7 @@ async def chat(request: ChatRequest):
 
     # Update platform tokens if provided (per-user OAuth tokens)
     if request.social_tokens:
-        agent.set_platform_tokens(request.social_tokens)
+        agent.set_platform_tokens(request.social_tokens, request.social_page_ids or {})
 
     try:
         # Prepend language instruction if English selected

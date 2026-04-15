@@ -183,14 +183,19 @@ router.get('/callback/:platform', async (req, res) => {
     const accessToken = tokenData.access_token;
     if (!accessToken) throw new Error('No access token in response');
 
-    // For Facebook/Instagram: get pages list
-    let pageId = null, pageName = null;
+    // For Facebook/Instagram: get page access token from /me/accounts
+    // Page access tokens already include pages_manage_posts permission — no extra scope needed
+    let pageId = null, pageName = null, pageAccessToken = null;
     if (platform === 'facebook' || platform === 'instagram') {
-      const pagesRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`);
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token&access_token=${accessToken}`
+      );
       const pagesData = await pagesRes.json();
+      console.log(`[social-oauth] ${platform} pages response:`, JSON.stringify(pagesData).slice(0, 200));
       if (pagesData.data?.[0]) {
         pageId = pagesData.data[0].id;
         pageName = pagesData.data[0].name;
+        pageAccessToken = pagesData.data[0].access_token || null; // page-level token with manage_posts
       }
     }
 
@@ -198,12 +203,12 @@ router.get('/callback/:platform', async (req, res) => {
       ? new Date(Date.now() + tokenData.expires_in * 1000)
       : null;
 
-    // Save token to user
+    // Save token to user — prefer page access token for Facebook (has manage_posts)
     const user = await User.findById(stateData.userId);
     if (!user) throw new Error('User not found');
 
     await user.setSocialToken(platform, {
-      accessToken,
+      accessToken: pageAccessToken || accessToken, // page token preferred
       refreshToken: tokenData.refresh_token || null,
       pageId,
       pageName,

@@ -779,22 +779,29 @@ class AdvertisingAgent:
             social_tools.register_platform(name, platform)
             analytics_tools.register_platform(name, platform)
 
-    def set_platform_tokens(self, tokens: Dict[str, str]) -> None:
+    def set_platform_tokens(self, tokens: Dict[str, str], page_ids: Dict[str, str] = None) -> None:
         """Update platform instances with per-user OAuth tokens."""
-        platform_classes = {
-            "facebook": FacebookPlatform,
-            "instagram": InstagramPlatform,
-            "twitter": TwitterPlatform,
-            "linkedin": LinkedInPlatform,
-            "tiktok": TikTokPlatform,
-        }
+        page_ids = page_ids or {}
         for platform_name, token in tokens.items():
-            if token and platform_name in platform_classes:
-                platform = platform_classes[platform_name](access_token=token)
-                self.platforms[platform_name] = platform
-                social_tools.register_platform(platform_name, platform)
-                analytics_tools.register_platform(platform_name, platform)
-                logger.info(f"Updated {platform_name} with user token for session {self.session_id}")
+            if not token:
+                continue
+            page_id = page_ids.get(platform_name)
+            if platform_name == "facebook":
+                platform = FacebookPlatform(access_token=token, page_id=page_id)
+            elif platform_name == "instagram":
+                platform = InstagramPlatform(access_token=token)
+            elif platform_name == "twitter":
+                platform = TwitterPlatform(access_token=token)
+            elif platform_name == "linkedin":
+                platform = LinkedInPlatform(access_token=token)
+            elif platform_name == "tiktok":
+                platform = TikTokPlatform(access_token=token)
+            else:
+                continue
+            self.platforms[platform_name] = platform
+            social_tools.register_platform(platform_name, platform)
+            analytics_tools.register_platform(platform_name, platform)
+            logger.info(f"Updated {platform_name} with user token (page_id={page_id}) for session {self.session_id}")
 
     async def connect_platform(self, platform_name: str) -> Optional[PlatformAccount]:
         """Connect to a social media platform and return account info."""
