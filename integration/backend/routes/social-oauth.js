@@ -125,6 +125,12 @@ router.get('/connect/:platform', requireAuth, (req, res) => {
     state,
   });
 
+  // Force Facebook to show the full permissions dialog even if user previously
+  // authorized the app with fewer permissions (prevents silent "Reconnect" reuse)
+  if (platform === 'facebook' || platform === 'instagram') {
+    params.set('auth_type', 'rerequest');
+  }
+
   // Twitter uses PKCE
   if (platform === 'twitter') {
     params.set('code_challenge_method', 'plain');
