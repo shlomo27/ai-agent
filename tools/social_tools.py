@@ -67,8 +67,13 @@ async def post_content(
                     "message": f"Successfully posted to {platform_name}",
                 }
         except Exception as e:
-            logger.error(f"Failed to post to {platform_name}: {e}")
-            results[platform_name] = {"success": False, "error": str(e)}
+            err = str(e)
+            logger.error(f"Failed to post to {platform_name}: {err}")
+            # Distinguish between connection errors and API errors
+            if "not connected" in err.lower() or "no token" in err.lower():
+                results[platform_name] = {"success": False, "error": f"Platform not connected: {err}"}
+            else:
+                results[platform_name] = {"success": False, "error": f"API error (platform IS connected but posting failed): {err}"}
 
     return {
         "results": results,
