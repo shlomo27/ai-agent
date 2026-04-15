@@ -98,6 +98,9 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
   const messagesEndRef = useRef(null);
   const userNameRef = useRef('');
 
+  // localStorage key per user (fallback when backend history is wiped on redeploy)
+  const chatStorageKey = user?.id ? `adv_chat_${user.id}` : null;
+
   const t = UI_TEXT[language] || UI_TEXT.he;
 
   const authFetch = useCallback((url, opts = {}) =>
@@ -135,6 +138,19 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
         setMessages(history);
         setHasRealHistory(true);
       } else {
+        // Backend history was wiped (e.g. server redeploy) — try localStorage backup
+        const storageKey = user?.id ? `adv_chat_${user.id}` : null;
+        const cached = storageKey ? localStorage.getItem(storageKey) : null;
+        if (cached) {
+          try {
+            const cachedMsgs = JSON.parse(cached);
+            if (Array.isArray(cachedMsgs) && cachedMsgs.length > 0) {
+              setMessages(cachedMsgs);
+              setHasRealHistory(true);
+              return;
+            }
+          } catch { /* ignore */ }
+        }
         setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
         setHasRealHistory(false);
       }
@@ -155,6 +171,13 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Persist messages to localStorage so refresh doesn't wipe the chat
+  useEffect(() => {
+    if (hasRealHistory && chatStorageKey && messages.length > 0) {
+      localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-60)));
+    }
+  }, [messages, hasRealHistory, chatStorageKey]);
 
   const sendMessage = async (text) => {
     const msgText = text || input;
@@ -217,6 +240,8 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
   const resetProfile = async () => {
     if (!confirm(t.resetConfirm)) return;
     await authFetch(`${API_BASE}/profile`, { method: 'DELETE' });
+    await authFetch(`${API_BASE}/chat/history`, { method: 'DELETE' }).catch(() => {});
+    if (chatStorageKey) localStorage.removeItem(chatStorageKey);
     setOnboardingComplete(false);
     setBusinessName('');
     setHasRealHistory(false);
