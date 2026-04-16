@@ -4,11 +4,15 @@ Allows external systems to integrate with the agent.
 """
 from __future__ import annotations
 import uuid
+import os
+import shutil
 import logging
+from pathlib import Path
 from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from agent import AdvertisingAgent
 from api.schemas import (
@@ -44,6 +48,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Media upload storage
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/ai-agent-uploads"))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+ALLOWED_MEDIA_TYPES = {
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "video/mp4", "video/quicktime", "video/webm",
+}
+MAX_UPLOAD_MB = 50
+
 # Agent instances per session
 _agents: Dict[str, AdvertisingAgent] = {}
 _campaigns: Dict[str, Campaign] = {}
@@ -64,6 +79,26 @@ async def root():
         "status": "running",
         "docs": "/docs",
     }
+
+
+@app.post("/api/upload")
+async def upload_media(file: UploadFile = File(...)):
+    """Upload an image or video file and return its public URL."""
+    if file.content_type not in ALLOWED_MEDIA_TYPES:
+        raise HTTPException(status_code=400, detail=f"File type not allowed: {file.content_type}")
+
+    # Read and check size
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large (max {MAX_UPLOAD_MB}MB)")
+
+    ext = Path(file.filename or "file").suffix.lower() or ".bin"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    dest = UPLOAD_DIR / filename
+    dest.write_bytes(data)
+
+    base_url = os.getenv("PUBLIC_API_URL", "").rstrip("/")
+    return {"url": f"{base_url}/uploads/{filename}", "filename": filename}
 
 
 @app.post("/api/chat", response_model=ChatResponse)

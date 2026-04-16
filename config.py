@@ -21,6 +21,7 @@ class Config:
     # API Server
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    PUBLIC_API_URL: str = os.getenv("PUBLIC_API_URL", "http://localhost:8000")
 
     # Facebook / Meta
     FACEBOOK_APP_ID: str = os.getenv("FACEBOOK_APP_ID", "")

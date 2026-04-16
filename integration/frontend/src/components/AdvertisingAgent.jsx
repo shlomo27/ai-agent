@@ -173,10 +173,11 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
   const [usage, setUsage] = useState(null);
   // Track whether history came from server (real conversation) vs just welcome
   const [hasRealHistory, setHasRealHistory] = useState(false);
-  // Image attachment state
-  const [imageUrl, setImageUrl] = useState('');
-  const [showImageInput, setShowImageInput] = useState(false);
-  const [imagePreviewError, setImagePreviewError] = useState(false);
+  // Media attachment state
+  const [mediaFile, setMediaFile] = useState(null);       // File object
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState(''); // local blob URL for preview
+  const [mediaUploadedUrl, setMediaUploadedUrl] = useState(''); // server URL after upload
+  const [mediaUploading, setMediaUploading] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const userNameRef = useRef('');
@@ -309,22 +310,24 @@ After I answer (even with "no"), write the post immediately without asking more 
     const msgText = text || input;
     if (!msgText.trim() || loading) return;
 
-    // Include image URL in message if attached
-    const fullMsg = imageUrl.trim()
-      ? `${msgText}\n[תמונה לפרסום: ${imageUrl.trim()}]`
+    // Include uploaded media URL in message if attached
+    const mediaUrl = mediaUploadedUrl.trim();
+    const fullMsg = mediaUrl
+      ? `${msgText}\n[מדיה לפרסום: ${mediaUrl}]`
       : msgText;
 
     // Display only what the user typed — never show server-side prefixes
     setMessages(prev => [...prev, {
       role: 'user',
       content: msgText,
-      ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
+      ...(mediaPreviewUrl ? { imageUrl: mediaPreviewUrl } : {}),
     }]);
 
     setHasRealHistory(true);
     setInput('');
-    setImageUrl('');
-    setShowImageInput(false);
+    setMediaFile(null);
+    setMediaPreviewUrl('');
+    setMediaUploadedUrl('');
     setLoading(true);
 
     try {
@@ -363,6 +366,35 @@ After I answer (even with "no"), write the post immediately without asking more 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    setMediaFile(file);
+    setMediaPreviewUrl(preview);
+    setMediaUploadedUrl('');
+    setMediaUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) throw new Error('upload failed');
+      const data = await res.json();
+      setMediaUploadedUrl(data.url);
+    } catch {
+      setMediaFile(null);
+      setMediaPreviewUrl('');
+      alert(language === 'he' ? 'שגיאה בהעלאת הקובץ. נסה שוב.' : 'Upload failed. Please try again.');
+    } finally {
+      setMediaUploading(false);
+    }
+    e.target.value = '';
   };
 
   const toggleLanguage = () => {
@@ -611,27 +643,21 @@ After I answer (even with "no"), write the post immediately without asking more 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Image URL input row (shown when attach clicked) */}
-      {showImageInput && (
-        <div style={s.imageInputRow}>
-          <span style={{ color: '#a5b4fc', fontSize: 13, flexShrink: 0 }}>🖼️</span>
-          <input
-            style={s.imageInput}
-            type="url"
-            placeholder="הדבק URL של תמונה..."
-            value={imageUrl}
-            onChange={e => { setImageUrl(e.target.value); setImagePreviewError(false); }}
-          />
-          {imageUrl && !imagePreviewError && (
-            <img
-              src={imageUrl}
-              alt="preview"
-              style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-              onError={() => setImagePreviewError(true)}
-            />
+      {/* Media preview row (shown after file selected) */}
+      {mediaPreviewUrl && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(255,255,255,0.07)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          {mediaFile?.type?.startsWith('video') ? (
+            <video src={mediaPreviewUrl} style={{ width: 50, height: 50, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} muted />
+          ) : (
+            <img src={mediaPreviewUrl} alt="preview" style={{ width: 50, height: 50, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
           )}
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {mediaUploading
+              ? (language === 'he' ? '⏳ מעלה...' : '⏳ Uploading...')
+              : (mediaUploadedUrl ? (language === 'he' ? '✅ מוכן לשליחה' : '✅ Ready to send') : '')}
+          </span>
           <button
-            onClick={() => { setImageUrl(''); setShowImageInput(false); }}
+            onClick={() => { setMediaFile(null); setMediaPreviewUrl(''); setMediaUploadedUrl(''); }}
             style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}
           >✕</button>
         </div>
@@ -639,12 +665,20 @@ After I answer (even with "no"), write the post immediately without asking more 
 
       {/* Input */}
       <div style={s.inputArea}>
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+        />
         <button
           className="sbtn"
-          style={{ ...s.attachBtn, opacity: loading ? 0.4 : 1 }}
-          onClick={() => setShowImageInput(v => !v)}
-          disabled={loading}
-          title={language === 'he' ? 'צרף תמונה' : 'Attach image'}
+          style={{ ...s.attachBtn, opacity: loading || mediaUploading ? 0.4 : 1 }}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading || mediaUploading}
+          title={language === 'he' ? 'צרף תמונה / סרטון' : 'Attach image / video'}
         >
           📎
         </button>
