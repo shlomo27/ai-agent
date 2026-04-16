@@ -304,11 +304,13 @@ You already know the product. Just ask me these 4 questions only:
       ? `${msgText}\n[תמונה לפרסום: ${imageUrl.trim()}]`
       : msgText;
 
+    // Display only what the user typed — never show server-side prefixes
     setMessages(prev => [...prev, {
       role: 'user',
       content: msgText,
       ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
     }]);
+
     setHasRealHistory(true);
     setInput('');
     setImageUrl('');

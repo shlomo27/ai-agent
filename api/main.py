@@ -84,14 +84,29 @@ async def chat(request: ChatRequest):
         agent.set_platform_tokens(request.social_tokens, request.social_page_ids or {})
 
     try:
-        # Prepend language instruction based on UI language selection
         message = request.message
-        if language == "en":
-            message = f"[UI language: English — respond in English, write posts in English unless user requests otherwise]\n{message}"
-        else:
-            message = f"[UI language: Hebrew — respond in Hebrew, write posts in Hebrew unless user requests otherwise]\n{message}"
+        parts = []
 
-        response = await agent.chat(message)
+        # Language instruction (invisible to user display — injected server-side)
+        if language == "en":
+            parts.append("[system: respond in English, write posts in English]")
+        else:
+            parts.append("[system: respond in Hebrew, write posts in Hebrew]")
+
+        # App context from AIBuilder — prepend structured info
+        if request.app_context and request.app_context.get("app_name"):
+            ctx = request.app_context
+            parts.append(
+                f"[ILMARIAI AIBuilder handoff — skip general onboarding]\n"
+                f"App name: {ctx.get('app_name','')}\n"
+                f"Website: {ctx.get('app_url','')}\n"
+                f"Description: {ctx.get('app_desc','')}"
+            )
+
+        parts.append(message)
+        full_message = "\n".join(parts)
+
+        response = await agent.chat(full_message)
         RateLimiter.record(session_id)
         profile = ProfileManager.get_or_create(session_id)
         usage = RateLimiter.get_usage(session_id, plan=plan)
