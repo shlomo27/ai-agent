@@ -237,8 +237,30 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
       if (appContext && !appContextSentRef.current) {
         appContextSentRef.current = true;
         const ctxMsg = language === 'en'
-          ? `I just finished building an app with ILMARIAI AIBuilder and want to advertise it:\n\nApp name: ${appContext.app_name}\nWebsite: ${appContext.app_url}\nDescription: ${appContext.app_desc}\n\nPlease help me create posts to promote it. I just need to answer: who is the target audience and is there anything specific to highlight?`
-          : `סיימתי לבנות אפליקציה עם ILMARIAI AIBuilder ורוצה לפרסם אותה:\n\nשם האפליקציה: ${appContext.app_name}\nכתובת אתר: ${appContext.app_url}\nתיאור: ${appContext.app_desc}\n\nעזור לי ליצור פוסטים לקידום שלה. רק צריך לדעת: מי קהל היעד ויש משהו ספציפי שרוצים להדגיש?`;
+          ? `I just built an app with ILMARIAI AIBuilder and want to advertise it:
+
+App name: ${appContext.app_name}
+Website: ${appContext.app_url}
+Description: ${appContext.app_desc}
+
+You already know the product — just answer these quick questions so I can create the perfect posts:
+
+1️⃣ Who is the target audience? (age, interests, location — or "general")
+2️⃣ Any special offer or launch promotion to mention?
+3️⃣ Preferred tone? (professional / warm / exciting / humorous)
+4️⃣ Anything else you'd like to highlight or add?`
+          : `סיימתי לבנות אפליקציה עם ILMARIAI AIBuilder ורוצה לפרסם אותה:
+
+שם: ${appContext.app_name}
+כתובת: ${appContext.app_url}
+תיאור: ${appContext.app_desc}
+
+את המוצר אתה כבר מכיר — רק ענה על כמה שאלות קצרות כדי שאוכל ליצור פוסטים מושלמים:
+
+1️⃣ מי קהל היעד? (גיל, תחומי עניין, מיקום — או "כללי")
+2️⃣ יש מבצע / הצעה מיוחדת / לאנץ' שצריך לציין?
+3️⃣ איזה טון מתאים? (מקצועי / חמים / נרגש / הומוריסטי)
+4️⃣ יש עוד משהו שחשוב לך שנדגיש?`;
         setTimeout(() => sendMessage(ctxMsg), 500);
       }
     });
