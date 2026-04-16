@@ -344,36 +344,37 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
     },
     header: {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '16px 20px', background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
+      padding: '10px 16px', background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
       color: 'white', flexShrink: 0,
     },
-    headerLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+    headerLeft: { display: 'flex', alignItems: 'center', gap: '8px' },
     headerInfo: { display: 'flex', flexDirection: 'column' },
-    headerTitle: { margin: 0, fontSize: '18px', fontWeight: 700 },
-    headerSub: { margin: 0, fontSize: '12px', opacity: 0.8 },
+    headerTitle: { margin: 0, fontSize: '15px', fontWeight: 700 },
+    headerSub: { margin: 0, fontSize: '11px', opacity: 0.75 },
     statusBadge: {
       background: onboardingComplete ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.2)',
       color: onboardingComplete ? '#4ade80' : '#fbbf24',
       border: `1px solid ${onboardingComplete ? '#4ade80' : '#fbbf24'}`,
-      borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
+      borderRadius: '20px', padding: '2px 8px', fontSize: '10px', fontWeight: 600,
     },
     planBadge: {
       background: `${planInfo.color}22`, color: planInfo.color,
       border: `1px solid ${planInfo.color}`,
-      borderRadius: '20px', padding: '3px 10px', fontSize: '11px', fontWeight: 600,
+      borderRadius: '20px', padding: '2px 8px', fontSize: '10px', fontWeight: 600,
     },
     resetBtn: {
       background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white',
-      borderRadius: '8px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px',
+      borderRadius: '6px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px',
     },
     quickActions: {
-      display: 'flex', gap: '8px', padding: '10px 14px', flexWrap: 'wrap',
+      display: 'flex', gap: '6px', padding: '7px 12px',
       background: '#12122a', flexShrink: 0, borderBottom: '1px solid #1e1e3a',
+      overflowX: 'auto', scrollbarWidth: 'none',
     },
     qBtn: {
       background: '#1e1e3a', border: '1px solid #2d2d5e', color: '#a5b4fc',
-      padding: '5px 12px', borderRadius: '16px', cursor: 'pointer',
-      fontSize: '12px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+      padding: '4px 10px', borderRadius: '14px', cursor: 'pointer',
+      fontSize: '11px', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0,
     },
     messages: {
       flex: 1, overflowY: 'auto', padding: '14px 16px',
@@ -401,7 +402,7 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
       background: '#a5b4fc', animation: 'bounce 1.2s infinite',
     },
     inputArea: {
-      display: 'flex', gap: '8px', padding: '12px 14px',
+      display: 'flex', gap: '6px', padding: '8px 12px',
       background: '#12122a', borderTop: '1px solid #1e1e3a', flexShrink: 0,
     },
     textarea: {
@@ -454,15 +455,15 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
       {/* Header */}
       <div style={s.header}>
         <div style={s.headerLeft}>
-          <span style={{ fontSize: '28px' }}>🚀</span>
+          <span style={{ fontSize: '20px' }}>🚀</span>
           <div style={s.headerInfo}>
             <h2 style={s.headerTitle}>
-              {t.headerTitle}{businessName ? ` | ${businessName}` : ''}
+              {businessName || t.headerTitle}
             </h2>
             <p style={s.headerSub}>{t.subtitle}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button style={s.langToggle} onClick={toggleLanguage}>
             {t.langBtn}
           </button>
