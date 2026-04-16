@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import AdvertisingAgent from '../components/AdvertisingAgent';
 import SocialConnect from '../components/SocialConnect';
 import './AdvertisingPage.css';
@@ -8,6 +9,15 @@ export default function AdvertisingPage() {
   const [connectOpen, setConnectOpen] = useState(
     () => localStorage.getItem('adv_connect_open') !== 'false'
   );
+  const location = useLocation();
+
+  // Read app context from URL params (passed from AppBuilder "Advertise" button)
+  const params = new URLSearchParams(location.search);
+  const appContext = params.get('app_name') ? {
+    app_name: params.get('app_name') || '',
+    app_url:  params.get('app_url')  || '',
+    app_desc: params.get('app_desc') || '',
+  } : null;
 
   useEffect(() => {
     const handler = (e) => setLang(e.detail || 'he');
@@ -40,9 +50,13 @@ export default function AdvertisingPage() {
         )}
       </div>
 
-      {/* Chat */}
+      {/* Chat — pass appContext so agent gets pre-loaded with app info */}
       <div className="adv-page-content">
-        <AdvertisingAgent language={lang} onLanguageChange={handleLangChange} />
+        <AdvertisingAgent
+          language={lang}
+          onLanguageChange={handleLangChange}
+          appContext={appContext}
+        />
       </div>
     </div>
   );

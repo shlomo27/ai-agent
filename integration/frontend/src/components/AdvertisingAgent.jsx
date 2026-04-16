@@ -148,7 +148,7 @@ function isOnlyWelcome(msgs) {
   return msgs.length === 1 && msgs[0].role === 'assistant';
 }
 
-export default function AdvertisingAgent({ language: langProp, onLanguageChange }) {
+export default function AdvertisingAgent({ language: langProp, onLanguageChange, appContext }) {
   const { token, user } = useAuth();
 
   // Language: controlled by parent if langProp is provided, otherwise self-managed
@@ -187,6 +187,9 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
         ...(opts.headers || {}),
       },
     }), [token]);
+
+  // Auto-send app context from AppBuilder if provided (once per session)
+  const appContextSentRef = useRef(false);
 
   // Load profile, plan and history on mount
   useEffect(() => {
@@ -228,6 +231,15 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
         }
         setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
         setHasRealHistory(false);
+      }
+    }).then(() => {
+      // If coming from AppBuilder with app context, auto-send it to the agent
+      if (appContext && !appContextSentRef.current) {
+        appContextSentRef.current = true;
+        const ctxMsg = language === 'en'
+          ? `I just finished building an app with ILMARIAI AIBuilder and want to advertise it:\n\nApp name: ${appContext.app_name}\nWebsite: ${appContext.app_url}\nDescription: ${appContext.app_desc}\n\nPlease help me create posts to promote it. I just need to answer: who is the target audience and is there anything specific to highlight?`
+          : `סיימתי לבנות אפליקציה עם ILMARIAI AIBuilder ורוצה לפרסם אותה:\n\nשם האפליקציה: ${appContext.app_name}\nכתובת אתר: ${appContext.app_url}\nתיאור: ${appContext.app_desc}\n\nעזור לי ליצור פוסטים לקידום שלה. רק צריך לדעת: מי קהל היעד ויש משהו ספציפי שרוצים להדגיש?`;
+        setTimeout(() => sendMessage(ctxMsg), 500);
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
