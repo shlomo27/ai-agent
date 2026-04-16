@@ -216,7 +216,6 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
         setMessages(history);
         setHasRealHistory(true);
       } else {
-        // Backend history was wiped (e.g. server redeploy) — try localStorage backup
         const storageKey = user?.id ? `adv_chat_${user.id}` : null;
         const cached = storageKey ? localStorage.getItem(storageKey) : null;
         if (cached) {
@@ -229,7 +228,15 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
             }
           } catch { /* ignore */ }
         }
-        setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
+        // Show context-aware welcome message
+        if (appContext) {
+          const welcomeCtx = language === 'en'
+            ? `👋 Hey ${name || ''}! I can see you just built **${appContext.app_name}** with ILMARIAI AIBuilder — let's promote it! 🚀\n\nI already know your product. Just answer 4 quick questions and I'll create posts immediately:`
+            : `👋 היי${name || ''}! רואה שזה עתה בנית את **${appContext.app_name}** עם ILMARIAI AIBuilder — עכשיו נפרסם אותה! 🚀\n\nאת המוצר אני כבר מכיר. ענה על 4 שאלות קצרות ואייצר פוסטים מיידית:`;
+          setMessages([{ role: 'assistant', content: welcomeCtx }]);
+        } else {
+          setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
+        }
         setHasRealHistory(false);
       }
     }).then(() => {
