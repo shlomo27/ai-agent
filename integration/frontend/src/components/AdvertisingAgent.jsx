@@ -231,8 +231,8 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
         // Show context-aware welcome message
         if (appContext) {
           const welcomeCtx = language === 'en'
-            ? `👋 Hey ${name || ''}! I can see you just built **${appContext.app_name}** with ILMARIAI AIBuilder — let's promote it! 🚀\n\nI already know your product. Just answer 4 quick questions and I'll create posts immediately:`
-            : `👋 היי${name || ''}! רואה שזה עתה בנית את **${appContext.app_name}** עם ILMARIAI AIBuilder — עכשיו נפרסם אותה! 🚀\n\nאת המוצר אני כבר מכיר. ענה על 4 שאלות קצרות ואייצר פוסטים מיידית:`;
+            ? `👋 Hey ${name || ''}! I can see you just built **${appContext.app_name}** with ILMARIAI AIBuilder — let's promote it! 🚀\n\nI already know your product. Just answer 3 quick questions and I'll create posts immediately:`
+            : `👋 היי${name || ''}! רואה שזה עתה בנית את **${appContext.app_name}** עם ILMARIAI AIBuilder — עכשיו נפרסם אותה! 🚀\n\nאת המוצר אני כבר מכיר. ענה על 3 שאלות קצרות ואייצר פוסטים מיידית:`;
           setMessages([{ role: 'assistant', content: welcomeCtx }]);
         } else {
           setMessages([{ role: 'assistant', content: t.welcomeNew(name) }]);
@@ -251,11 +251,12 @@ App name: ${appContext.app_name}
 Website: ${appContext.app_url}
 Description: ${appContext.app_desc}
 
-You already know the product. Just ask me these 4 questions only:
+You already know the product. Ask me EXACTLY these 3 questions and no more:
 1️⃣ Who is the target audience?
 2️⃣ Any special offer or launch promotion?
 3️⃣ Preferred tone? (professional / warm / exciting / humorous)
-4️⃣ Anything else to highlight?`
+
+After I answer (even with "no"), write the post immediately without asking more questions.`
           : `[ILMARIAI AIBuilder handoff — דלג על onboarding כללי]
 סיימתי לבנות עם ILMARIAI AIBuilder ורוצה לפרסם.
 
@@ -263,11 +264,12 @@ You already know the product. Just ask me these 4 questions only:
 כתובת: ${appContext.app_url}
 תיאור: ${appContext.app_desc}
 
-את המוצר אתה כבר מכיר. שאל אותי רק 4 שאלות:
-1️⃣ מי קהל היעד?
-2️⃣ יש מבצע / הצעה מיוחדת?
-3️⃣ איזה טון? (מקצועי / חמים / נרגש / הומוריסטי)
-4️⃣ יש עוד משהו להוסיף?`;
+את המוצר אתה כבר מכיר. שאל אותי בדיוק 3 שאלות ולא יותר:
+1️⃣ מי קהל היעד? (גיל, תחום עניין, מיקום)
+2️⃣ יש מבצע / הצעה מיוחדת לציין?
+3️⃣ איזה טון מתאים? (חמים / מקצועי / נרגש)
+
+אחרי שאענה (גם אם "לא") — כתוב פוסט מיד, ללא שאלות נוספות.`;
         setTimeout(() => sendMessage(ctxMsg), 500);
       }
     });
