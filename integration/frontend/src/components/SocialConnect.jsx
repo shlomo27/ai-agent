@@ -158,9 +158,9 @@ export default function SocialConnect({ language = 'he' }) {
   const connectedCount = Object.values(status).filter(s => s?.connected).length;
 
   return (
-    <div style={{ marginBottom: 24, direction: t.dir }}>
-      <h3 style={{ color: '#ccc', fontSize: 15, margin: '0 0 10px', fontWeight: 600 }}>
-        {t.title}
+    <div style={{ direction: t.dir }}>
+      <h3 style={{ color: '#ccc', fontSize: 13, margin: '8px 0 8px', fontWeight: 600 }}>
+        {t.title}{connectedCount > 0 ? ` · ✅ מחובר ${connectedCount}` : ''}
       </h3>
 
       {/* Banner when no platforms are connected */}
@@ -183,21 +183,21 @@ export default function SocialConnect({ language = 'he' }) {
       <div style={{
         background: '#0d1a2d',
         border: '1px solid #1877f2',
-        borderRadius: 10,
-        padding: '10px 14px',
-        marginBottom: 12,
-        fontSize: 12,
+        borderRadius: 8,
+        padding: '7px 12px',
+        marginBottom: 8,
+        fontSize: 11,
         color: '#90caf9',
-        lineHeight: 1.6,
+        lineHeight: 1.5,
       }}>
-        <div style={{ fontWeight: 700, marginBottom: 4, color: '#90caf9' }}>{t.fbInfoTitle}</div>
+        <div style={{ fontWeight: 700, marginBottom: 2, color: '#90caf9' }}>{t.fbInfoTitle}</div>
         {t.fbInfoLines.map((line, i) => <div key={i}>{line}</div>)}
       </div>
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-        gap: 10,
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 8,
       }}>
         {PLATFORMS.map(({ id, label, icon, color }) => {
           const info = status[id];
@@ -210,19 +210,21 @@ export default function SocialConnect({ language = 'he' }) {
               key={id}
               style={{
                 background: '#12122a',
-                border: `1px solid ${isConnected && !isExpired ? color : '#333'}`,
-                borderRadius: 12,
-                padding: '10px 14px',
+                border: `1px solid ${isConnected && !isExpired ? color : '#2a2a3a'}`,
+                borderRadius: 10,
+                padding: '7px 12px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                minWidth: 150,
+                gap: 8,
+                flex: '1 1 140px',
+                minWidth: 130,
+                maxWidth: 200,
               }}
             >
-              <span style={{ fontSize: 22 }}>{icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{label}</div>
-                <div style={{ fontSize: 11, color: isConnected ? (isExpired ? '#f59e0b' : '#4ade80') : '#666' }}>
+              <span style={{ fontSize: 18 }}>{icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{label}</div>
+                <div style={{ fontSize: 10, color: isConnected ? (isExpired ? '#f59e0b' : '#4ade80') : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {isConnected
                     ? (isExpired ? t.expired : (info?.pageName || t.connected))
                     : t.disconnected}
@@ -235,12 +237,13 @@ export default function SocialConnect({ language = 'he' }) {
                   background: isConnected ? 'transparent' : color,
                   color: isConnected ? '#f87171' : '#fff',
                   border: isConnected ? '1px solid #f87171' : 'none',
-                  borderRadius: 8,
-                  padding: '5px 10px',
-                  fontSize: 12,
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  fontSize: 11,
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   opacity: isLoading ? 0.6 : 1,
                   whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
               >
                 {isLoading ? t.connecting : (isConnected ? t.disconnect : t.connect)}

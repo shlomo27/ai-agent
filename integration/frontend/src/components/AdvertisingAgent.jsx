@@ -63,6 +63,76 @@ const UI_TEXT = {
   },
 };
 
+// ─── Simple markdown → JSX renderer ─────────────────────────────────────────
+function renderMarkdown(text) {
+  if (!text) return null;
+  const lines = text.split('\n');
+  const elements = [];
+  let key = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Heading (###)
+    if (/^###\s/.test(line)) {
+      elements.push(
+        <div key={key++} style={{ fontWeight: 800, fontSize: '15px', marginTop: 8, marginBottom: 2 }}>
+          {inlineMarkdown(line.replace(/^###\s/, ''))}
+        </div>
+      );
+    // Heading (##)
+    } else if (/^##\s/.test(line)) {
+      elements.push(
+        <div key={key++} style={{ fontWeight: 800, fontSize: '16px', marginTop: 8, marginBottom: 2 }}>
+          {inlineMarkdown(line.replace(/^##\s/, ''))}
+        </div>
+      );
+    // Bullet / numbered
+    } else if (/^[-*•]\s/.test(line) || /^\d+\.\s/.test(line)) {
+      elements.push(
+        <div key={key++} style={{ paddingInlineStart: '12px', marginBottom: 2 }}>
+          {inlineMarkdown(line)}
+        </div>
+      );
+    // Horizontal rule
+    } else if (/^---+$/.test(line.trim())) {
+      elements.push(<hr key={key++} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.2)', margin: '8px 0' }} />);
+    // Empty line → spacer
+    } else if (line.trim() === '') {
+      elements.push(<div key={key++} style={{ height: 6 }} />);
+    } else {
+      elements.push(<div key={key++}>{inlineMarkdown(line)}</div>);
+    }
+  }
+  return elements;
+}
+
+function inlineMarkdown(text) {
+  // Split on bold (**), italic (*), inline code (`), and URLs
+  const parts = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|https?:\/\/[^\s)]+)/g;
+  let last = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(<span key={key++}>{text.slice(last, match.index)}</span>);
+    const m = match[0];
+    if (m.startsWith('**')) {
+      parts.push(<strong key={key++}>{m.slice(2, -2)}</strong>);
+    } else if (m.startsWith('*')) {
+      parts.push(<em key={key++}>{m.slice(1, -1)}</em>);
+    } else if (m.startsWith('`')) {
+      parts.push(<code key={key++} style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 4px', fontSize: '0.9em' }}>{m.slice(1, -1)}</code>);
+    } else if (m.startsWith('http')) {
+      parts.push(<a key={key++} href={m} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'underline', wordBreak: 'break-all' }}>{m}</a>);
+    }
+    last = match.index + m.length;
+  }
+  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>);
+  return parts.length > 0 ? parts : text;
+}
+
 const PLAN_LABELS = {
   free:            { label: 'Free',            color: '#6b7280' },
   basic:           { label: 'Basic',           color: '#3b82f6' },
@@ -306,8 +376,8 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
       fontSize: '12px', whiteSpace: 'nowrap', transition: 'all 0.15s',
     },
     messages: {
-      flex: 1, overflowY: 'auto', padding: '16px 14px',
-      display: 'flex', flexDirection: 'column', gap: '12px',
+      flex: 1, overflowY: 'auto', padding: '14px 16px',
+      display: 'flex', flexDirection: 'column', gap: '10px',
     },
     userBubble: {
       alignSelf: language === 'he' ? 'flex-start' : 'flex-end',
@@ -318,8 +388,8 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
     aiBubble: {
       alignSelf: language === 'he' ? 'flex-end' : 'flex-start',
       background: 'linear-gradient(135deg, #5b21b6, #1d4ed8)',
-      color: 'white', padding: '10px 14px', borderRadius: '16px 16px 16px 4px',
-      maxWidth: '85%', lineHeight: 1.6, fontSize: '14px', whiteSpace: 'pre-wrap',
+      color: 'white', padding: '12px 16px', borderRadius: '16px 16px 16px 4px',
+      maxWidth: '88%', lineHeight: 1.7, fontSize: '14px',
     },
     loadingBubble: {
       alignSelf: language === 'he' ? 'flex-end' : 'flex-start',
@@ -425,7 +495,9 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
       <div style={s.messages}>
         {messages.map((msg, i) => (
           <div key={i} style={msg.role === 'user' ? s.userBubble : s.aiBubble}>
-            {msg.content}
+            {msg.role === 'assistant'
+              ? renderMarkdown(msg.content)
+              : msg.content}
             {msg.imageUrl && (
               <img
                 src={msg.imageUrl}

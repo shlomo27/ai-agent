@@ -1,46 +1,60 @@
 .adv-page {
   height: 100vh;
   background: #080812;
-  padding: 24px 24px 0;
+  padding: 12px 16px 0;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  gap: 10px;
 }
 
-.adv-page-header {
-  text-align: center;
-  margin-bottom: 16px;
-  color: white;
-  flex-shrink: 0;
-}
-
-.adv-page-header h1 {
-  font-size: 28px;
-  margin: 0 0 6px;
-  background: linear-gradient(135deg, #6c3fe8, #3f8cf5);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.adv-page-header p {
-  color: #8888aa;
-  font-size: 14px;
-  margin: 0;
-}
-
-.adv-page-connect {
-  max-width: 900px;
+/* ── Collapsible connect panel ────────────────────────────── */
+.adv-connect-wrapper {
+  max-width: 960px;
   width: 100%;
-  margin: 0 auto 12px;
+  margin: 0 auto;
   flex-shrink: 0;
+  background: #0e0e22;
+  border: 1px solid #1e1e3a;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
+.adv-connect-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  color: #a5b4fc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+}
+
+.adv-connect-toggle:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.adv-toggle-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.adv-connect-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid #1e1e3a;
+}
+
+/* ── Chat area ─────────────────────────────────────────────── */
 .adv-page-content {
   flex: 1;
   min-height: 0;
-  max-width: 800px;
+  max-width: 960px;
   width: 100%;
   margin: 0 auto;
-  padding-bottom: 24px;
+  padding-bottom: 16px;
 }
