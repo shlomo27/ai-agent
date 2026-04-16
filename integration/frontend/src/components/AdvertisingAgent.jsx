@@ -95,6 +95,11 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
   const [plan, setPlan] = useState('free');
   // Track whether history came from server (real conversation) vs just welcome
   const [hasRealHistory, setHasRealHistory] = useState(false);
+  // Image attachment state
+  const [imageUrl, setImageUrl] = useState('');
+  const [showImageInput, setShowImageInput] = useState(false);
+  const [imagePreviewError, setImagePreviewError] = useState(false);
+  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const userNameRef = useRef('');
 
@@ -183,15 +188,26 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
     const msgText = text || input;
     if (!msgText.trim() || loading) return;
 
-    setMessages(prev => [...prev, { role: 'user', content: msgText }]);
+    // Include image URL in message if attached
+    const fullMsg = imageUrl.trim()
+      ? `${msgText}\n[תמונה לפרסום: ${imageUrl.trim()}]`
+      : msgText;
+
+    setMessages(prev => [...prev, {
+      role: 'user',
+      content: msgText,
+      ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
+    }]);
     setHasRealHistory(true);
     setInput('');
+    setImageUrl('');
+    setShowImageInput(false);
     setLoading(true);
 
     try {
       const res = await authFetch(`${API_BASE}/chat`, {
         method: 'POST',
-        body: JSON.stringify({ message: msgText, language }),
+        body: JSON.stringify({ message: fullMsg, language }),
       });
 
       if (res.status === 429) {
@@ -334,6 +350,21 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
       border: 'none', borderRadius: '10px', padding: '10px 18px',
       cursor: 'pointer', fontWeight: 700, fontSize: '14px', flexShrink: 0,
     },
+    attachBtn: {
+      background: '#1e1e3a', border: '1px solid #2d2d5e', color: '#a5b4fc',
+      borderRadius: '10px', padding: '10px 12px', cursor: 'pointer',
+      fontSize: '16px', flexShrink: 0, lineHeight: 1,
+    },
+    imageInputRow: {
+      display: 'flex', gap: '8px', padding: '8px 14px',
+      background: '#12122a', borderTop: '1px solid #1e1e3a',
+      alignItems: 'center',
+    },
+    imageInput: {
+      flex: 1, background: '#1e1e3a', border: '1px solid #2d2d5e', color: '#e2e8f0',
+      borderRadius: '8px', padding: '7px 11px', fontSize: '13px',
+      outline: 'none', fontFamily: 'inherit', direction: 'ltr',
+    },
   };
 
   return (
@@ -395,6 +426,14 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
         {messages.map((msg, i) => (
           <div key={i} style={msg.role === 'user' ? s.userBubble : s.aiBubble}>
             {msg.content}
+            {msg.imageUrl && (
+              <img
+                src={msg.imageUrl}
+                alt="attached"
+                style={{ display: 'block', marginTop: 8, maxWidth: '100%', maxHeight: 180, borderRadius: 8, objectFit: 'cover' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
+            )}
           </div>
         ))}
         {loading && (
@@ -410,8 +449,43 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange 
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Image URL input row (shown when attach clicked) */}
+      {showImageInput && (
+        <div style={s.imageInputRow}>
+          <span style={{ color: '#a5b4fc', fontSize: 13, flexShrink: 0 }}>🖼️</span>
+          <input
+            style={s.imageInput}
+            type="url"
+            placeholder="הדבק URL של תמונה..."
+            value={imageUrl}
+            onChange={e => { setImageUrl(e.target.value); setImagePreviewError(false); }}
+          />
+          {imageUrl && !imagePreviewError && (
+            <img
+              src={imageUrl}
+              alt="preview"
+              style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+              onError={() => setImagePreviewError(true)}
+            />
+          )}
+          <button
+            onClick={() => { setImageUrl(''); setShowImageInput(false); }}
+            style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}
+          >✕</button>
+        </div>
+      )}
+
       {/* Input */}
       <div style={s.inputArea}>
+        <button
+          className="sbtn"
+          style={{ ...s.attachBtn, opacity: loading ? 0.4 : 1 }}
+          onClick={() => setShowImageInput(v => !v)}
+          disabled={loading}
+          title={language === 'he' ? 'צרף תמונה' : 'Attach image'}
+        >
+          📎
+        </button>
         <textarea
           style={s.textarea}
           value={input}

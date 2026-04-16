@@ -33,6 +33,13 @@ const TEXT = {
     successMsg: (p) => `✅ ${p} חוברה בהצלחה!`,
     errorMsg: (e) => `❌ שגיאה: ${e}`,
     noPlatformsBanner: '⚠️ כדי שה-AI יוכל לפרסם בשמך — חבר לפחות פלטפורמה אחת. לחץ "חבר" ליד הפלטפורמה הרצויה, אשר גישה, וה-AI יתחיל לפרסם אוטומטית.',
+    fbInfoTitle: '📘 פייסבוק ואינסטגרם — מה חשוב לדעת',
+    fbInfoLines: [
+      '• נדרש דף עסקי (Facebook Page) — לא ניתן לפרסם לפרופיל אישי דרך API.',
+      '• פוסט אורגני (חינם) — מגיע רק לעוקבים של הדף.',
+      '• פרסום ממומן (בתשלום) — מגיע לקהל ממוקד רחב דרך Facebook Ads Manager.',
+      '• אין דף? צור אחד בחינם בקלות ב‑facebook.com/pages/create',
+    ],
     dir: 'rtl',
   },
   en: {
@@ -46,6 +53,13 @@ const TEXT = {
     successMsg: (p) => `✅ ${p} connected successfully!`,
     errorMsg: (e) => `❌ Error: ${e}`,
     noPlatformsBanner: '⚠️ To let the AI post on your behalf — connect at least one platform. Click "Connect" next to the platform, approve access, and the AI will start posting automatically.',
+    fbInfoTitle: '📘 Facebook & Instagram — What to know',
+    fbInfoLines: [
+      '• Requires a Facebook Page — posting to personal profiles is not supported by the API.',
+      '• Organic post (free) — reaches only your page followers.',
+      '• Paid ad (costs money) — reaches a targeted audience via Facebook Ads Manager.',
+      '• No page? Create one free at facebook.com/pages/create',
+    ],
     dir: 'ltr',
   },
 };
@@ -164,6 +178,21 @@ export default function SocialConnect({ language = 'he' }) {
           {t.noPlatformsBanner}
         </div>
       )}
+
+      {/* Facebook / Instagram info box */}
+      <div style={{
+        background: '#0d1a2d',
+        border: '1px solid #1877f2',
+        borderRadius: 10,
+        padding: '10px 14px',
+        marginBottom: 12,
+        fontSize: 12,
+        color: '#90caf9',
+        lineHeight: 1.6,
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 4, color: '#90caf9' }}>{t.fbInfoTitle}</div>
+        {t.fbInfoLines.map((line, i) => <div key={i}>{line}</div>)}
+      </div>
 
       <div style={{
         display: 'grid',
