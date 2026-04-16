@@ -94,6 +94,13 @@ function renderMarkdown(text) {
           {inlineMarkdown(line)}
         </div>
       );
+    // Blockquote (>)
+    } else if (/^>\s?/.test(line)) {
+      elements.push(
+        <div key={key++} style={{ borderInlineStart: '3px solid rgba(255,255,255,0.4)', paddingInlineStart: 8, marginBlock: 2, opacity: 0.9, fontStyle: 'italic' }}>
+          {inlineMarkdown(line.replace(/^>\s?/, ''))}
+        </div>
+      );
     // Horizontal rule
     } else if (/^---+$/.test(line.trim())) {
       elements.push(<hr key={key++} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.2)', margin: '8px 0' }} />);

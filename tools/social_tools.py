@@ -49,6 +49,14 @@ async def post_content(
             results[platform_name] = {"success": False, "error": f"Platform '{platform_name}' not connected"}
             continue
 
+        # Platform exists but has no real token — don't fake success
+        if getattr(platform, "demo_mode", True):
+            results[platform_name] = {
+                "success": False,
+                "error": f"Platform '{platform_name}' not connected — please link your account first",
+            }
+            continue
+
         try:
             if groups:
                 for group_id in groups:
