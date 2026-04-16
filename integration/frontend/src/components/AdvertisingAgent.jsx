@@ -170,6 +170,7 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [plan, setPlan] = useState('free');
+  const [usage, setUsage] = useState(null);
   // Track whether history came from server (real conversation) vs just welcome
   const [hasRealHistory, setHasRealHistory] = useState(false);
   // Image attachment state
@@ -353,6 +354,7 @@ After I answer (even with "no"), write the post immediately without asking more 
         setOnboardingComplete(true);
         if (data.business_name) setBusinessName(data.business_name);
       }
+      if (data.usage) setUsage(data.usage);
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -519,7 +521,6 @@ After I answer (even with "no"), write the post immediately without asking more 
           <button style={s.langToggle} onClick={toggleLanguage}>
             {t.langBtn}
           </button>
-          <span style={s.planBadge}>{planInfo.label}</span>
           <span style={s.statusBadge}>
             {onboardingComplete ? t.profileReady : t.setupFirst}
           </span>
@@ -528,6 +529,42 @@ After I answer (even with "no"), write the post immediately without asking more 
           )}
         </div>
       </div>
+
+      {/* Plan + Usage bar */}
+      {(() => {
+        const daily = usage?.daily;
+        const remaining = daily ? daily.remaining : null;
+        const limit = daily ? daily.limit : null;
+        const pct = daily ? Math.max(0, Math.round((daily.used / daily.limit) * 100)) : 0;
+        const isLow = remaining !== null && remaining <= 2;
+        const isFree = plan === 'free';
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
+            <span style={{
+              background: `${planInfo.color}33`, color: planInfo.color,
+              border: `1px solid ${planInfo.color}66`,
+              borderRadius: 20, padding: '2px 10px', fontWeight: 700, fontSize: 11,
+            }}>
+              {planInfo.label}
+            </span>
+            {daily && (
+              <>
+                <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4, overflow: 'hidden', maxWidth: 120 }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: isLow ? '#ef4444' : planInfo.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ color: isLow ? '#fca5a5' : 'rgba(255,255,255,0.65)', fontWeight: isLow ? 700 : 400 }}>
+                  {language === 'en' ? `${remaining}/${limit} msgs left today` : `${remaining}/${limit} הודעות נותרו`}
+                </span>
+              </>
+            )}
+            {isFree && (
+              <a href="/pricing" style={{ color: '#a78bfa', fontSize: 11, fontWeight: 600, textDecoration: 'none', marginInlineStart: 'auto' }}>
+                {language === 'en' ? '⬆ Upgrade' : '⬆ שדרג'}
+              </a>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Quick Actions */}
       <div style={s.quickActions}>
