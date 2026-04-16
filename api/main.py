@@ -84,10 +84,12 @@ async def chat(request: ChatRequest):
         agent.set_platform_tokens(request.social_tokens, request.social_page_ids or {})
 
     try:
-        # Prepend language instruction if English selected
+        # Prepend language instruction based on UI language selection
         message = request.message
         if language == "en":
-            message = f"[RESPOND IN ENGLISH ONLY] {message}"
+            message = f"[UI language: English — respond in English, write posts in English unless user requests otherwise]\n{message}"
+        else:
+            message = f"[UI language: Hebrew — respond in Hebrew, write posts in Hebrew unless user requests otherwise]\n{message}"
 
         response = await agent.chat(message)
         RateLimiter.record(session_id)
