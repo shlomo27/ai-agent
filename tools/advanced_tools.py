@@ -13,7 +13,25 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
+import anthropic as _anthropic
+
 logger = logging.getLogger(__name__)
+
+
+def _claude(prompt: str, max_tokens: int = 600) -> str:
+    """Call Claude Haiku synchronously for a single-turn generation task."""
+    from config import config
+    client = _anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        logger.error(f"Claude call failed in advanced_tools: {e}")
+        return ""
 
 
 def generate_post_image_prompt(
@@ -73,40 +91,32 @@ def create_ab_test(
     tone_a: str = "professional",
     tone_b: str = "casual",
 ) -> Dict[str, Any]:
-    """Create two content variants for A/B testing."""
+    """Create two real post variants for A/B testing using Claude."""
+    cta = f" קישור: {website_url}" if website_url else ""
+    base = f"עסק: {business_name}.{cta}"
 
-    tone_styles = {
-        "professional": "מקצועי, ישיר, מבוסס נתונים",
-        "casual": "קליל, ידידותי, שיחתי",
-        "funny": "הומוריסטי, קליל, עם אמוג'י",
-        "inspirational": "מעורר השראה, חיובי, מוטיבציוני",
-        "educational": "מלמד, מוסיף ערך, מעמיק",
-        "urgent": "דחוף, מגביל בזמן, call-to-action חזק",
-    }
+    content_a = _claude(
+        f"כתוב פוסט {platform} על '{topic}' בסגנון {tone_a}. {base} "
+        f"כתוב רק את הפוסט עצמו, ללא הסברים.",
+        max_tokens=400,
+    )
+    content_b = _claude(
+        f"כתוב פוסט {platform} על '{topic}' בסגנון {tone_b}. {base} "
+        f"כתוב רק את הפוסט עצמו, ללא הסברים.",
+        max_tokens=400,
+    )
 
     return {
         "test_id": f"ab_{platform}_{datetime.now().strftime('%m%d%H%M')}",
         "platform": platform,
         "topic": topic,
-        "variant_a": {
-            "name": "Variant A",
-            "tone": tone_a,
-            "style": tone_styles.get(tone_a, tone_a),
-            "instruction": f"כתוב פוסט ל{platform} על הנושא '{topic}' בסגנון {tone_styles.get(tone_a, tone_a)}. עסק: {business_name}. קישור: {website_url}",
-            "cta": "קריאה לפעולה ישירה",
-        },
-        "variant_b": {
-            "name": "Variant B",
-            "tone": tone_b,
-            "style": tone_styles.get(tone_b, tone_b),
-            "instruction": f"כתוב פוסט ל{platform} על הנושא '{topic}' בסגנון {tone_styles.get(tone_b, tone_b)}. עסק: {business_name}. קישור: {website_url}",
-            "cta": "קריאה לפעולה עקיפה",
-        },
+        "variant_a": {"name": "Variant A", "tone": tone_a, "content": content_a},
+        "variant_b": {"name": "Variant B", "tone": tone_b, "content": content_b},
         "testing_guide": {
-            "duration": "פרסם את שני הווריאנטים ב-A/B - 50% מהקהל לכל אחד",
+            "duration": "פרסם את שני הווריאנטים — 50% מהקהל לכל אחד",
             "measure": ["clicks", "likes", "comments", "shares", "reach"],
             "decide_after": "48 שעות",
-            "winner_criteria": "הווריאנט עם CTR (click-through rate) גבוה יותר מנצח",
+            "winner_criteria": "הווריאנט עם CTR גבוה יותר מנצח",
         },
     }
 
@@ -118,27 +128,34 @@ def translate_content(
     platform: str = "facebook",
     business_context: str = "",
 ) -> Dict[str, Any]:
-    """Generate translation guidelines for content in multiple languages."""
+    """Translate post content to multiple languages using Claude."""
     if not target_languages:
-        target_languages = ["english", "arabic"]
+        target_languages = ["english"]
 
-    lang_map = {
+    lang_meta = {
         "english": {"name": "English", "direction": "ltr", "flag": "🇬🇧"},
-        "arabic": {"name": "العربية", "direction": "rtl", "flag": "🇸🇦"},
-        "french": {"name": "Français", "direction": "ltr", "flag": "🇫🇷"},
-        "spanish": {"name": "Español", "direction": "ltr", "flag": "🇪🇸"},
-        "russian": {"name": "Русский", "direction": "ltr", "flag": "🇷🇺"},
+        "arabic":  {"name": "العربية", "direction": "rtl", "flag": "🇸🇦"},
+        "french":  {"name": "Français", "direction": "ltr", "flag": "🇫🇷"},
+        "spanish": {"name": "Español",  "direction": "ltr", "flag": "🇪🇸"},
+        "russian": {"name": "Русский",  "direction": "ltr", "flag": "🇷🇺"},
+        "german":  {"name": "Deutsch",  "direction": "ltr", "flag": "🇩🇪"},
     }
 
     translations = {}
     for lang in target_languages:
-        info = lang_map.get(lang, {"name": lang, "direction": "ltr", "flag": "🌐"})
+        meta = lang_meta.get(lang, {"name": lang, "direction": "ltr", "flag": "🌐"})
+        translated = _claude(
+            f"Translate this {platform} post from {source_language} to {meta['name']}. "
+            f"Keep the same tone, emojis, hashtags style, and call-to-action. "
+            f"Business context: {business_context}. "
+            f"Return ONLY the translated post, no explanations.\n\nPost:\n{content}",
+            max_tokens=500,
+        )
         translations[lang] = {
-            "language": info["name"],
-            "flag": info["flag"],
-            "direction": info["direction"],
-            "instruction": f"Translate this {platform} post to {info['name']} naturally (not word-for-word). Keep the tone, emojis, and call-to-action. Business context: {business_context}. Original: {content}",
-            "localization_tips": _get_localization_tips(lang, platform),
+            "language": meta["name"],
+            "flag": meta["flag"],
+            "direction": meta["direction"],
+            "translated_content": translated,
         }
 
     return {
@@ -146,7 +163,7 @@ def translate_content(
         "original_language": source_language,
         "platform": platform,
         "translations": translations,
-        "multi_language_tip": "פרסם גרסאות שונות לפי שפה ומיקוד גיאוגרפי לחשיפה מקסימלית",
+        "tip": "פרסם גרסאות שונות לפי שפה ומיקוד גיאוגרפי לחשיפה מקסימלית",
     }
 
 
@@ -177,42 +194,42 @@ def monitor_competitors(
     platform: str,
     business_name: str = "",
 ) -> Dict[str, Any]:
-    """Generate a competitor monitoring framework and analysis."""
+    """Analyze competitors using Claude's knowledge of the industry."""
+    competitors_str = ", ".join(competitors) if competitors else "מתחרים בתחום"
+
+    analysis = _claude(
+        f"אתה מנתח שיווק דיגיטלי מומחה. נתח את המתחרים הבאים בתחום '{industry}' בפלטפורמה {platform}:\n"
+        f"מתחרים: {competitors_str}\n"
+        f"עסק שלנו: {business_name}\n\n"
+        f"ספק ניתוח מעשי הכולל:\n"
+        f"1. אסטרטגיית התוכן הנפוצה שלהם\n"
+        f"2. חוזקות שלהם\n"
+        f"3. חולשות / פערים שניתן לנצל\n"
+        f"4. 3 המלצות קונקרטיות ל-{business_name} כדי להתבלט\n"
+        f"כתוב בעברית, ענייני ומעשי.",
+        max_tokens=700,
+    )
+
+    gap_analysis = _claude(
+        f"בהינתן שהמתחרים ב'{industry}' על {platform} הם: {competitors_str}, "
+        f"מהן 5 הזדמנויות ספציפיות שעסק כמו '{business_name}' יכול לנצל? "
+        f"תשובה קצרה בנקודות, עברית.",
+        max_tokens=300,
+    )
+
     return {
         "industry": industry,
         "platform": platform,
         "competitors_analyzed": competitors,
-        "monitoring_framework": {
-            "what_to_track": [
-                "תדירות פרסום (כמה פוסטים ביום/שבוע)",
-                "סוגי תוכן (תמונות, סרטונים, טקסט)",
-                "האשטגים בשימוש",
-                "שעות פרסום",
-                "engagement rate (לייקים/תגובות לעומת followers)",
-                "קמפיינים ממומנים (Sponsored posts)",
-                "תגובה לתגובות ומעורבות עם קהל",
-            ],
-            "tools_recommended": [
-                "Facebook Ad Library (בחינם) - לראות פרסומות ממומנות",
-                "Social Blade - לניתוח צמיחה",
-                "Phlanx - לחישוב engagement rate",
-                "Similarweb - לניתוח תנועה לאתר",
-            ],
-            "manual_check_frequency": "פעם בשבוע",
-        },
-        "gap_analysis_questions": [
-            f"האם {business_name} מפרסם יותר או פחות מהמתחרים?",
-            "אילו נושאים המתחרים מכסים שאתה לא?",
-            "מה ה-engagement rate שלהם לעומת שלך?",
-            "האם הם משקיעים בפרסום ממומן?",
+        "analysis": analysis,
+        "opportunities": gap_analysis,
+        "tools_recommended": [
+            "Facebook Ad Library (בחינם) — לראות פרסומות ממומנות של מתחרים",
+            "Social Blade — לניתוח צמיחת עוקבים",
+            "Phlanx — לחישוב engagement rate",
+            "Similarweb — לניתוח תנועה לאתר",
         ],
-        "opportunity_identification": [
-            "נושאים שהמתחרים לא מכסים = הזדמנות לך",
-            "שעות שהמתחרים לא פעילים = פחות תחרות",
-            "פלטפורמות שהמתחרים לא נמצאים בהן",
-            "קהלים שהמתחרים מתעלמים מהם",
-        ],
-        "competitive_advantages": f"בהתבסס על ניתוח שוק ב-{industry}, התמקד בנישות ייחודיות ובנוכחות בפלטפורמות שהמתחרים מתעלמים מהן.",
+        "check_frequency": "פעם בשבוע",
     }
 
 
@@ -237,6 +254,30 @@ def generate_weekly_report(
         (20 if top_performing_content else 0)
     ))
 
+    platforms_str = ", ".join(platforms_active) if platforms_active else "לא צוינו"
+    top_str = f"הפוסט המוביל: {top_performing_content}. " if top_performing_content else ""
+
+    insights_raw = _claude(
+        f"הפק 4 תובנות שיווקיות קונקרטיות ומעשיות לעסק '{business_name}' "
+        f"בהתבסס על הנתונים הבאים:\n"
+        f"- פוסטים שפורסמו השבוע: {posts_this_week}\n"
+        f"- פלטפורמות פעילות: {platforms_str}\n"
+        f"- ציון ביצועים: {performance_score}/100\n"
+        f"- {top_str}"
+        f"כתוב 4 נקודות ספציפיות בעברית, כל אחת בשורה נפרדת.",
+        max_tokens=400,
+    )
+    insights = [line.strip() for line in insights_raw.split("\n") if line.strip()][:4] or [
+        f"פורסמו {posts_this_week} פוסטים על {len(platforms_active)} פלטפורמות"]
+
+    next_week_raw = _claude(
+        f"תכנן את השבוע הבא לעסק '{business_name}' ב-{platforms_str}. "
+        f"השבוע פורסמו {posts_this_week} פוסטים (ציון {performance_score}/100). "
+        f"תן תוכנית תמציתית: כמה פוסטים, באיזה ימים, ואיזה נושאים. "
+        f"כתוב ב-3-4 משפטים קצרים בעברית.",
+        max_tokens=300,
+    )
+
     return {
         "report_title": f"דוח שבועי - {business_name}",
         "period": f"{week_start} - {week_end}",
@@ -252,35 +293,12 @@ def generate_weekly_report(
         "platform_breakdown": {
             p: {
                 "posts": max(1, posts_this_week // len(platforms_active)) if platforms_active else 0,
-                "estimated_reach": (posts_this_week // max(1, len(platforms_active))) * 150,
-                "engagement_rate": "3.2%",
             }
             for p in platforms_active
         },
         "top_performing": top_performing_content or "לא סופקו נתונים",
-        "insights": [
-            f"פורסמו {posts_this_week} פוסטים השבוע על {len(platforms_active)} פלטפורמות",
-            "זמני הפרסום האופטימליים: ימי שלישי-רביעי בשעות 9-11 ו-19-21",
-            "תוכן עם שאלות לקהל מייצר engagement גבוה ב-40%",
-            "פוסטים עם תמונות מקבלים חשיפה גבוהה ב-2.3x",
-        ],
-        "next_week_plan": {
-            "recommended_posts": max(14, posts_this_week + 2),
-            "focus_platforms": platforms_active[:2] if platforms_active else ["facebook", "instagram"],
-            "content_themes": [
-                "תוכן חינוכי/ערך (40%)",
-                "תוכן פרסומי (30%)",
-                "תוכן מעורבות/שאלות (20%)",
-                "תוכן מאחורי הקלעים (10%)",
-            ],
-            "goal": f"הגדל reach ב-20% לעומת השבוע הזה",
-        },
-        "action_items": [
-            "✅ תזמן לפחות 3 פוסטים לשבוע הבא מראש",
-            "✅ צור תמונה מקצועית לפחות לפוסט אחד",
-            "✅ הגב לכל התגובות תוך 24 שעות",
-            "✅ בדוק אם יש פוסטים ויראליים של מתחרים לחיקוי",
-        ],
+        "insights": insights,
+        "next_week_plan": next_week,
         "website_traffic_tip": f"הוסף UTM parameters לכל הקישורים ל-{website_url} כדי לעקוב אחרי תנועה מרשתות חברתיות",
     }
 
@@ -560,40 +578,33 @@ def generate_smart_reply(
     tone: str = "professional",
     comment_sentiment: str = "positive",
 ) -> Dict[str, Any]:
-    """Generate smart reply suggestions for a comment."""
-
-    tone_guide = {
-        "professional": "מקצועי, ישיר, מכבד",
-        "casual": "קליל, ידידותי, אישי",
-        "funny": "הומוריסטי, קל, מבדר",
-    }
-
-    sentiment_strategy = {
-        "positive": "תודה, חיזוק, הזמנה להמשיך בקשר",
-        "negative": "אמפתיה, פתרון, העברה לפרטי",
-        "question": "תשובה מפורטת, הצעת עזרה נוספת",
-        "neutral": "מעורבות, שאלה חוזרת, ערך מוסף",
-    }
+    """Generate real reply suggestions using Claude."""
+    short_reply = _claude(
+        f"כתוב תגובה קצרה (1-2 משפטים) לתגובה הבאה ב-{platform} בשם העסק '{business_name}'.\n"
+        f"סנטימנט: {comment_sentiment}. טון: {tone}.\n"
+        f"תגובה מקורית: \"{comment_text}\"\n"
+        f"כתוב רק את התגובה עצמה.",
+        max_tokens=150,
+    )
+    detailed_reply = _claude(
+        f"כתוב תגובה מפורטת (3-4 משפטים) לתגובה הבאה ב-{platform} בשם העסק '{business_name}'.\n"
+        f"סנטימנט: {comment_sentiment}. טון: {tone}. כלול ערך מוסף או מידע שימושי.\n"
+        f"תגובה מקורית: \"{comment_text}\"\n"
+        f"כתוב רק את התגובה עצמה.",
+        max_tokens=250,
+    )
 
     return {
         "original_comment": comment_text,
         "platform": platform,
         "sentiment_detected": comment_sentiment,
-        "reply_strategy": sentiment_strategy.get(comment_sentiment, "מעורבות חיובית"),
         "suggested_replies": [
-            {
-                "variant": "קצר ומהיר",
-                "instruction": f"כתוב תגובה קצרה (1-2 משפטים) ל: '{comment_text}' בשם {business_name}, טון: {tone_guide.get(tone, tone)}. אסטרטגיה: {sentiment_strategy.get(comment_sentiment)}",
-            },
-            {
-                "variant": "מפורט עם ערך",
-                "instruction": f"כתוב תגובה מפורטת (3-4 משפטים) ל: '{comment_text}' בשם {business_name}, כלול ערך מוסף או מידע שימושי. טון: {tone_guide.get(tone, tone)}",
-            },
+            {"variant": "קצר ומהיר", "content": short_reply},
+            {"variant": "מפורט עם ערך", "content": detailed_reply},
         ],
-        "auto_reply_tips": [
+        "tips": [
             "הגב תוך 1-2 שעות לשיפור ה-engagement rate",
-            "תמיד קרא לאדם בשמו אם הוא ציין אותו",
-            "עבור תלונות - העבר לפרטי/ווטסאפ",
+            "עבור תלונות — העבר לפרטי/וואטסאפ",
             "הוסף שאלה חוזרת לשמירת שיחה פעילה",
         ],
     }
