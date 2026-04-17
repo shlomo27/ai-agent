@@ -46,6 +46,7 @@ from tools.advanced_tools import (
     save_to_crm,
 )
 from tools.action_log import log_action, get_action_log
+from tools.feature_gate import FeatureGate
 
 logger = logging.getLogger(__name__)
 
@@ -869,6 +870,7 @@ class AdvertisingAgent:
 
     def __init__(self, session_id: str = "default"):
         self.session_id = session_id
+        self.plan = "free"
         self.client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
         self.conversation_history: List[Dict[str, Any]] = []
         self.connected_platforms: Dict[str, Any] = {}
@@ -896,11 +898,25 @@ class AdvertisingAgent:
             analytics_tools.register_platform(name, platform)
 
     def set_platform_tokens(self, tokens: Dict[str, str], page_ids: Dict[str, str] = None) -> None:
-        """Update platform instances with per-user OAuth tokens."""
+        """Update platform instances with per-user OAuth tokens (plan-gated)."""
         page_ids = page_ids or {}
+        # Count currently connected (real token) platforms
+        already_connected = sum(
+            1 for p in self.platforms.values() if not getattr(p, "demo_mode", True)
+        )
         for platform_name, token in tokens.items():
             if not token:
                 continue
+            # Skip if already registered with a real token (re-auth is fine)
+            if not getattr(self.platforms.get(platform_name), "demo_mode", True):
+                pass  # updating existing — doesn't count as new
+            else:
+                allowed, reason = FeatureGate.check_platform_limit(self.plan, already_connected)
+                if not allowed:
+                    logger.warning(f"Platform limit reached for plan={self.plan}: {reason}")
+                    continue
+                already_connected += 1
+
             page_id = page_ids.get(platform_name)
             if platform_name == "facebook":
                 platform = FacebookPlatform(access_token=token, page_id=page_id)
@@ -1137,7 +1153,12 @@ class AdvertisingAgent:
 
             # Scheduler tools
             elif tool_name == "schedule_post":
-                return schedule_post(session_id=self.session_id, **tool_input)
+                ok, reason = FeatureGate.check_scheduling_quota(self.session_id, self.plan)
+                if not ok:
+                    return {"error": reason, "blocked": True}
+                result = schedule_post(session_id=self.session_id, **tool_input)
+                FeatureGate.record_scheduled_post(self.session_id)
+                return result
             elif tool_name == "list_scheduled_posts":
                 return list_scheduled_posts(session_id=self.session_id)
             elif tool_name == "cancel_scheduled_post":
@@ -1149,20 +1170,33 @@ class AdvertisingAgent:
                     business_name=self.profile.business_name, **tool_input
                 )
             elif tool_name == "create_ab_test":
+                ok, reason = FeatureGate.check(self.plan, "ab_testing")
+                if not ok:
+                    return {"error": reason, "blocked": True}
                 return create_ab_test(
                     business_name=self.profile.business_name,
                     website_url=self.profile.website_url,
                     **tool_input,
                 )
             elif tool_name == "translate_content":
+                langs = tool_input.get("target_languages", [])
+                ok, reason = FeatureGate.check_translation_languages(self.plan, len(langs))
+                if not ok:
+                    return {"error": reason, "blocked": True}
                 return translate_content(
                     business_context=self.profile.description, **tool_input
                 )
             elif tool_name == "monitor_competitors":
+                ok, reason = FeatureGate.check(self.plan, "competitor_analysis")
+                if not ok:
+                    return {"error": reason, "blocked": True}
                 return monitor_competitors(
                     business_name=self.profile.business_name, **tool_input
                 )
             elif tool_name == "generate_weekly_report":
+                ok, reason = FeatureGate.check(self.plan, "weekly_report")
+                if not ok:
+                    return {"error": reason, "blocked": True}
                 return generate_weekly_report(
                     session_id=self.session_id,
                     business_name=self.profile.business_name,
@@ -1170,6 +1204,9 @@ class AdvertisingAgent:
                     **tool_input,
                 )
             elif tool_name == "generate_smart_reply":
+                ok, reason = FeatureGate.check(self.plan, "smart_reply")
+                if not ok:
+                    return {"error": reason, "blocked": True}
                 return generate_smart_reply(
                     business_name=self.profile.business_name,
                     tone=self.profile.content_strategy.tone,

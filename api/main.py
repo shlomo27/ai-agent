@@ -108,6 +108,7 @@ async def chat(request: ChatRequest):
     plan = request.plan or "free"
     language = request.language or "he"
     agent = _get_or_create_agent(session_id)
+    agent.plan = plan  # keep agent aware of current plan for feature gating
 
     # Rate limiting check (plan-aware)
     allowed, reason = RateLimiter.check(session_id, plan=plan)
@@ -395,6 +396,13 @@ async def get_chat_history(session_id: str):
     from storage.history_manager import HistoryManager
     history = HistoryManager.load(session_id)
     return {"history": history, "count": len(history)}
+
+
+@app.get("/api/plan-features")
+async def get_plan_features(plan: str = "free"):
+    """Return what features are available for a given plan."""
+    from tools.feature_gate import FeatureGate
+    return FeatureGate.get_plan_summary(plan)
 
 
 @app.delete("/api/chat/{session_id}")
