@@ -110,7 +110,8 @@ async def upload_media(
 async def chat(request: ChatRequest):
     """Chat with the AI advertising agent."""
     session_id = request.session_id or str(uuid.uuid4())
-    plan = request.plan or "free"
+    # marketing_plan (from APPIFY) takes precedence over generic plan field
+    plan = request.marketing_plan or request.plan or "free"
     language = request.language or "he"
     agent = _get_or_create_agent(session_id)
     agent.plan = plan  # keep agent aware of current plan for feature gating

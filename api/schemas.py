@@ -10,6 +10,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     plan: Optional[str] = "free"
+    marketing_plan: Optional[str] = None  # alias sent by APPIFY — takes precedence over plan
     language: Optional[str] = "he"
     social_tokens: Optional[Dict[str, str]] = None
     social_page_ids: Optional[Dict[str, str]] = None

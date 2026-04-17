@@ -990,7 +990,15 @@ class AdvertisingAgent:
         else:
             onboarding_instruction = ""
 
-        return SYSTEM_PROMPT + "\n\n" + profile_context + onboarding_instruction
+        # Plan-aware content quality instruction
+        from tools.feature_gate import FeatureGate, PLAN_FEATURES
+        features = PLAN_FEATURES.get(self.plan, PLAN_FEATURES["free"])
+        if features.get("ai_content_quality") == "basic":
+            plan_instruction = "\n\n## 📋 תוכנית המשתמש: Free\nכתוב פוסטים קצרים (2-3 שורות), טון פשוט. אל תציע A/B Testing, תזמון, תרגום, דוח שבועי או Smart Reply — אלו פיצ'רים בתשלום."
+        else:
+            plan_instruction = ""
+
+        return SYSTEM_PROMPT + "\n\n" + profile_context + onboarding_instruction + plan_instruction
 
     def _select_model(self, message: str) -> tuple[str, bool]:
         """

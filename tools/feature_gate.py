@@ -23,7 +23,8 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "competitor_analysis": False,
         "weekly_report": False,
         "smart_reply": False,
-        "max_translation_languages": 1,
+        "max_translation_languages": 0,  # no translation on Free
+        "ai_content_quality": "basic",   # shorter, simpler posts
     },
     "basic": {
         "max_platforms": 2,
@@ -33,7 +34,8 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "competitor_analysis": False,
         "weekly_report": False,
         "smart_reply": False,
-        "max_translation_languages": 1,
+        "max_translation_languages": 0,  # no translation on Basic
+        "ai_content_quality": "standard",
     },
     "pro": {
         "max_platforms": 4,
@@ -44,6 +46,7 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "weekly_report": True,
         "smart_reply": True,
         "max_translation_languages": 3,
+        "ai_content_quality": "standard",
     },
     "business": {
         "max_platforms": 6,
@@ -54,6 +57,7 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "weekly_report": True,
         "smart_reply": True,
         "max_translation_languages": 6,
+        "ai_content_quality": "standard",
     },
     # Bundle plans mirror their equivalent tiers
     "bundle_starter": {
@@ -64,7 +68,8 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "competitor_analysis": False,
         "weekly_report": False,
         "smart_reply": False,
-        "max_translation_languages": 1,
+        "max_translation_languages": 0,
+        "ai_content_quality": "basic",
     },
     "bundle_pro": {
         "max_platforms": 4,
@@ -75,6 +80,7 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "weekly_report": True,
         "smart_reply": True,
         "max_translation_languages": 3,
+        "ai_content_quality": "standard",
     },
     "bundle_business": {
         "max_platforms": 6,
@@ -85,6 +91,7 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "weekly_report": True,
         "smart_reply": True,
         "max_translation_languages": 6,
+        "ai_content_quality": "standard",
     },
 }
 
