@@ -936,11 +936,19 @@ class AdvertisingAgent:
             logger.info(f"Updated {platform_name} with user token (page_id={page_id}) for session {self.session_id}")
 
     async def connect_platform(self, platform_name: str) -> Optional[PlatformAccount]:
-        """Connect to a social media platform and return account info."""
+        """Connect to a social media platform and return account info (plan-gated)."""
         platform = self.platforms.get(platform_name)
         if not platform:
             logger.error(f"Unknown platform: {platform_name}")
             return None
+
+        # Check if re-connecting an already-connected platform (always allowed)
+        if platform_name not in self.connected_platforms:
+            current = len(self.connected_platforms)
+            allowed, reason = FeatureGate.check_platform_limit(self.plan, current)
+            if not allowed:
+                logger.warning(f"Platform limit for session {self.session_id}: {reason}")
+                raise ValueError(reason)
 
         try:
             account = await platform.connect()

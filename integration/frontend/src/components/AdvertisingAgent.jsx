@@ -381,7 +381,10 @@ After I answer (even with "no"), write the post immediately without asking more 
       form.append('file', file);
       const res = await fetch(`${API_BASE}/upload`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Session-Id': user?.id || 'anonymous',
+        },
         body: form,
       });
       if (!res.ok) throw new Error('upload failed');

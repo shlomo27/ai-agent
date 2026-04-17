@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -82,8 +82,13 @@ async def root():
 
 
 @app.post("/api/upload")
-async def upload_media(file: UploadFile = File(...)):
+async def upload_media(
+    file: UploadFile = File(...),
+    session_id: Optional[str] = Header(None, alias="X-Session-Id"),
+):
     """Upload an image or video file and return its public URL."""
+    if not session_id:
+        raise HTTPException(status_code=401, detail="X-Session-Id header required")
     if file.content_type not in ALLOWED_MEDIA_TYPES:
         raise HTTPException(status_code=400, detail=f"File type not allowed: {file.content_type}")
 
@@ -375,10 +380,14 @@ async def get_usage(session_id: str, plan: str = "free"):
 
 
 @app.get("/api/report/{session_id}")
-async def get_weekly_report(session_id: str):
-    """Generate a weekly report for a session."""
+async def get_weekly_report(session_id: str, plan: str = "free"):
+    """Generate a weekly report for a session (Pro+ only)."""
     from tools.advanced_tools import generate_weekly_report
     from tools.scheduler import list_scheduled_posts
+    from tools.feature_gate import FeatureGate
+    ok, reason = FeatureGate.check(plan, "weekly_report")
+    if not ok:
+        raise HTTPException(status_code=403, detail=reason)
     profile = ProfileManager.get_or_create(session_id)
     scheduled = list_scheduled_posts(session_id=session_id)
     return generate_weekly_report(
@@ -437,13 +446,17 @@ async def get_audit_log(session_id: str, limit: int = 50):
 
 
 @app.post("/api/weekly-email/{session_id}")
-async def generate_weekly_email_data(session_id: str):
+async def generate_weekly_email_data(session_id: str, plan: str = "free"):
     """
-    Generate weekly email report data for a session.
+    Generate weekly email report data for a session (Pro+ only).
     Called by appify backend cron to get data before sending via Resend.
     """
     from tools.advanced_tools import generate_weekly_report
     from tools.scheduler import list_scheduled_posts
+    from tools.feature_gate import FeatureGate
+    ok, reason = FeatureGate.check(plan, "weekly_report")
+    if not ok:
+        raise HTTPException(status_code=403, detail=reason)
     profile = ProfileManager.get_or_create(session_id)
     scheduled = list_scheduled_posts(session_id=session_id)
     report = generate_weekly_report(
