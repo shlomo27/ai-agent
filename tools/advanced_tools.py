@@ -31,7 +31,7 @@ def _claude(prompt: str, max_tokens: int = 600) -> str:
         return response.content[0].text.strip()
     except Exception as e:
         logger.error(f"Claude call failed in advanced_tools: {e}")
-        return ""
+        raise RuntimeError(f"AI generation failed: {e}") from e
 
 
 def generate_post_image_prompt(
@@ -298,7 +298,7 @@ def generate_weekly_report(
         },
         "top_performing": top_performing_content or "לא סופקו נתונים",
         "insights": insights,
-        "next_week_plan": next_week,
+        "next_week_plan": next_week_raw,
         "website_traffic_tip": f"הוסף UTM parameters לכל הקישורים ל-{website_url} כדי לעקוב אחרי תנועה מרשתות חברתיות",
     }
 

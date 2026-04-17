@@ -80,7 +80,10 @@ async def background_loop():
 
 def start_background_runner():
     """Start the background runner as an asyncio task."""
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
     task = loop.create_task(background_loop())
     logger.info("Background job runner task created")
     return task
