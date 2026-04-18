@@ -142,12 +142,14 @@ function inlineMarkdown(text) {
 
 const PLAN_LABELS = {
   free:            { label: 'Free',            color: '#6b7280' },
+  starter:         { label: 'Starter',         color: '#3b82f6' },
   basic:           { label: 'Basic',           color: '#3b82f6' },
   pro:             { label: 'Pro',             color: '#8b5cf6' },
   business:        { label: 'Business',        color: '#f59e0b' },
   bundle_starter:  { label: 'Bundle Starter',  color: '#3b82f6' },
   bundle_pro:      { label: 'Bundle Pro',      color: '#8b5cf6' },
   bundle_business: { label: 'Bundle Business', color: '#f59e0b' },
+  max:             { label: 'Max',             color: '#10b981' },
 };
 
 // Detect if a message is still the auto-generated welcome (no real conversation yet)
@@ -155,7 +157,7 @@ function isOnlyWelcome(msgs) {
   return msgs.length === 1 && msgs[0].role === 'assistant';
 }
 
-export default function AdvertisingAgent({ language: langProp, onLanguageChange, appContext }) {
+export default function AdvertisingAgent({ language: langProp, onLanguageChange, appContext, marketingPlan }) {
   const { token, user } = useAuth();
 
   // Language: controlled by parent if langProp is provided, otherwise self-managed
@@ -169,7 +171,7 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
   const [loading, setLoading] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [businessName, setBusinessName] = useState('');
-  const [plan, setPlan] = useState('free');
+  const [plan, setPlan] = useState(() => marketingPlan || 'free');
   const [usage, setUsage] = useState(null);
   // Track whether history came from server (real conversation) vs just welcome
   const [hasRealHistory, setHasRealHistory] = useState(false);
@@ -205,14 +207,14 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
     if (!token) return;
     Promise.all([
       authFetch(`${API_BASE}/profile`).then(r => r.json()).catch(() => ({})),
-      authFetch(`${API_BASE}/plan`).then(r => r.json()).catch(() => ({})),
       authFetch(`${API_BASE}/chat/history`).then(r => r.json()).catch(() => ({ history: [] })),
-    ]).then(([profileData, planData, historyData]) => {
+    ]).then(([profileData, historyData]) => {
       if (profileData.onboarding_complete) {
         setOnboardingComplete(true);
         setBusinessName(profileData.business_name || '');
       }
-      if (planData.plan) setPlan(planData.plan);
+      // Plan comes from the marketingPlan prop injected by APPIFY; keep current state
+      if (marketingPlan) setPlan(marketingPlan);
 
       const history = (historyData.history || [])
         .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' }))
@@ -333,7 +335,7 @@ After I answer (even with "no"), write the post immediately without asking more 
     try {
       const res = await authFetch(`${API_BASE}/chat`, {
         method: 'POST',
-        body: JSON.stringify({ message: fullMsg, language }),
+        body: JSON.stringify({ message: fullMsg, language, marketing_plan: plan }),
       });
 
       if (res.status === 429) {
