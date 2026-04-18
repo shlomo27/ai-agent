@@ -188,11 +188,11 @@ router.get('/callback/:platform', async (req, res) => {
     if (platform === 'twitter') {
       const pkceVerifier = stateData.extra;
       if (!pkceVerifier) throw new Error('Missing PKCE code verifier — please try connecting again');
-      // Native App (public client) — no client_secret, PKCE only
+      const creds = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
       const r = await fetch(config.tokenUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ client_id: config.clientId, code, grant_type: 'authorization_code', redirect_uri: config.redirectUri, code_verifier: pkceVerifier }),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}` },
+        body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: config.redirectUri, code_verifier: pkceVerifier }),
       });
       tokenData = await r.json();
       console.log(`[social-oauth] Twitter token response:`, JSON.stringify(tokenData).slice(0, 300));
