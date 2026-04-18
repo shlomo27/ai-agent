@@ -26,6 +26,15 @@ export default function AdvertisingPage() {
     return () => window.removeEventListener('adv_lang_change', handler);
   }, []);
 
+  // Auto-open the connect panel when returning from OAuth so the toast is visible
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('social_connected') || p.get('social_error')) {
+      setConnectOpen(true);
+      localStorage.setItem('adv_connect_open', 'true');
+    }
+  }, []);
+
   const handleLangChange = (newLang) => setLang(newLang);
 
   const toggleConnect = () => {

@@ -92,8 +92,10 @@ const PLATFORM_CONFIG = {
 // ─── Stateless signed state (works across multiple server instances) ──────────
 const STATE_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET || 'ilmariai-oauth-secret';
 
-function createState(userId, platform) {
-  const payload = `${userId}:${platform}:${Date.now()}`;
+function createState(userId, platform, extra) {
+  const payload = extra
+    ? `${userId}:${platform}:${Date.now()}:${extra}`
+    : `${userId}:${platform}:${Date.now()}`;
   const sig = crypto.createHmac('sha256', STATE_SECRET).update(payload).digest('hex').slice(0, 24);
   return Buffer.from(payload).toString('base64url') + '.' + sig;
 }
@@ -107,10 +109,12 @@ function verifyState(state, expectedPlatform) {
     const payload = Buffer.from(b64, 'base64url').toString();
     const expectedSig = crypto.createHmac('sha256', STATE_SECRET).update(payload).digest('hex').slice(0, 24);
     if (sig !== expectedSig) return null;
-    const [userId, platform, ts] = payload.split(':');
+    const parts = payload.split(':');
+    if (parts.length < 3) return null;
+    const [userId, platform, ts, ...rest] = parts;
     if (platform !== expectedPlatform) return null;
     if (Date.now() - parseInt(ts) > 15 * 60 * 1000) return null; // 15 min expiry
-    return { userId, platform };
+    return { userId, platform, extra: rest.length ? rest.join(':') : null };
   } catch {
     return null;
   }
@@ -129,7 +133,13 @@ router.get('/connect/:platform', requireAuth, (req, res) => {
     return res.status(503).json({ error: `${platform} OAuth not configured on server` });
   }
 
-  const state = createState(req.user.id, platform);
+  // Twitter PKCE: generate a proper random code_verifier, embed it in the signed state
+  let codeVerifier = null;
+  if (platform === 'twitter') {
+    codeVerifier = crypto.randomBytes(32).toString('base64url');
+  }
+
+  const state = createState(req.user.id, platform, codeVerifier);
 
   const params = new URLSearchParams({
     client_id: config.clientId,
@@ -145,10 +155,10 @@ router.get('/connect/:platform', requireAuth, (req, res) => {
     params.set('auth_type', 'rerequest');
   }
 
-  // Twitter uses PKCE
+  // Twitter PKCE — send the random verifier as the code_challenge (plain method)
   if (platform === 'twitter') {
     params.set('code_challenge_method', 'plain');
-    params.set('code_challenge', state);
+    params.set('code_challenge', codeVerifier);
   }
 
   res.json({ url: `${config.authUrl}?${params.toString()}` });
@@ -176,13 +186,16 @@ router.get('/callback/:platform', async (req, res) => {
     let tokenData;
 
     if (platform === 'twitter') {
+      const pkceVerifier = stateData.extra;
+      if (!pkceVerifier) throw new Error('Missing PKCE code verifier — please try connecting again');
       const creds = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
       const r = await fetch(config.tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}` },
-        body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: config.redirectUri, code_verifier: state }),
+        body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: config.redirectUri, code_verifier: pkceVerifier }),
       });
       tokenData = await r.json();
+      console.log(`[social-oauth] Twitter token response:`, JSON.stringify(tokenData).slice(0, 300));
     } else if (platform === 'tiktok') {
       const r = await fetch(config.tokenUrl, {
         method: 'POST',
@@ -200,7 +213,10 @@ router.get('/callback/:platform', async (req, res) => {
     }
 
     const accessToken = tokenData.access_token;
-    if (!accessToken) throw new Error('No access token in response');
+    if (!accessToken) {
+      const detail = tokenData.error_description || tokenData.error || JSON.stringify(tokenData).slice(0, 120);
+      throw new Error(`No access token: ${detail}`);
+    }
 
     // For Facebook/Instagram: get page access token from /me/accounts
     // Page access tokens already include pages_manage_posts permission — no extra scope needed
