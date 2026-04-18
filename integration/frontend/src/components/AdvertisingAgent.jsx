@@ -172,6 +172,18 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [plan, setPlan] = useState(() => marketingPlan || 'free');
+
+  // Sync plan from prop or from user object (APPIFY injects plan via user.plan / user.marketing_plan)
+  useEffect(() => {
+    const resolved = (
+      marketingPlan ||
+      user?.marketing_plan ||
+      user?.plan ||
+      user?.subscription ||
+      'free'
+    ).toLowerCase();
+    setPlan(resolved);
+  }, [marketingPlan, user]);
   const [usage, setUsage] = useState(null);
   // Track whether history came from server (real conversation) vs just welcome
   const [hasRealHistory, setHasRealHistory] = useState(false);
