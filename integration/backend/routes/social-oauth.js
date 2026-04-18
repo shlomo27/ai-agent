@@ -90,16 +90,32 @@ const PLATFORM_CONFIG = {
   },
 };
 
-// Temporary state store (in production use Redis or DB)
-const oauthStates = new Map(); // state → { userId, platform, createdAt }
+// ─── Stateless signed state (works across multiple server instances) ──────────
+const STATE_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET || 'ilmariai-oauth-secret';
 
-// Clean expired states every 10 min
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of oauthStates) {
-    if (now - v.createdAt > 10 * 60 * 1000) oauthStates.delete(k);
+function createState(userId, platform) {
+  const payload = `${userId}:${platform}:${Date.now()}`;
+  const sig = crypto.createHmac('sha256', STATE_SECRET).update(payload).digest('hex').slice(0, 24);
+  return Buffer.from(payload).toString('base64url') + '.' + sig;
+}
+
+function verifyState(state, expectedPlatform) {
+  try {
+    const dot = state.lastIndexOf('.');
+    if (dot === -1) return null;
+    const b64 = state.slice(0, dot);
+    const sig = state.slice(dot + 1);
+    const payload = Buffer.from(b64, 'base64url').toString();
+    const expectedSig = crypto.createHmac('sha256', STATE_SECRET).update(payload).digest('hex').slice(0, 24);
+    if (sig !== expectedSig) return null;
+    const [userId, platform, ts] = payload.split(':');
+    if (platform !== expectedPlatform) return null;
+    if (Date.now() - parseInt(ts) > 15 * 60 * 1000) return null; // 15 min expiry
+    return { userId, platform };
+  } catch {
+    return null;
   }
-}, 10 * 60 * 1000);
+}
 
 // ─── GET /api/social/connect/:platform ───────────────────────────────────────
 // Returns the OAuth URL to redirect the user to
@@ -114,8 +130,7 @@ router.get('/connect/:platform', requireAuth, (req, res) => {
     return res.status(503).json({ error: `${platform} OAuth not configured on server` });
   }
 
-  const state = crypto.randomBytes(20).toString('hex');
-  oauthStates.set(state, { userId: req.user.id, platform, createdAt: Date.now() });
+  const state = createState(req.user.id, platform);
 
   const params = new URLSearchParams({
     client_id: config.clientId,
@@ -150,11 +165,10 @@ router.get('/callback/:platform', async (req, res) => {
     return res.redirect(`${FRONTEND_URL}/advertising?social_error=${encodeURIComponent(error)}`);
   }
 
-  const stateData = oauthStates.get(state);
-  if (!stateData || stateData.platform !== platform) {
+  const stateData = verifyState(state, platform);
+  if (!stateData) {
     return res.redirect(`${FRONTEND_URL}/advertising?social_error=invalid_state`);
   }
-  oauthStates.delete(state);
 
   const config = PLATFORM_CONFIG[platform];
 
