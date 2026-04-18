@@ -11,13 +11,14 @@ export default function AdvertisingPage() {
   );
   const location = useLocation();
 
-  // Read app context from URL params (passed from AppBuilder "Advertise" button)
+  // Read app context and plan from URL params
   const params = new URLSearchParams(location.search);
   const appContext = params.get('app_name') ? {
     app_name: params.get('app_name') || '',
     app_url:  params.get('app_url')  || '',
     app_desc: params.get('app_desc') || '',
   } : null;
+  const urlPlan = params.get('plan') || params.get('marketing_plan') || null;
 
   useEffect(() => {
     const handler = (e) => setLang(e.detail || 'he');
@@ -56,6 +57,7 @@ export default function AdvertisingPage() {
           language={lang}
           onLanguageChange={handleLangChange}
           appContext={appContext}
+          marketingPlan={urlPlan}
         />
       </div>
     </div>

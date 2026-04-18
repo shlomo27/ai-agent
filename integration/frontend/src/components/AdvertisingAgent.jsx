@@ -371,7 +371,10 @@ After I answer (even with "no"), write the post immediately without asking more 
         setOnboardingComplete(true);
         if (data.business_name) setBusinessName(data.business_name);
       }
-      if (data.usage) setUsage(data.usage);
+      if (data.usage) {
+        setUsage(data.usage);
+        if (data.usage.plan) setPlan(data.usage.plan);
+      }
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
