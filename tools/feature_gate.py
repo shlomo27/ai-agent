@@ -93,6 +93,30 @@ PLAN_FEATURES: Dict[str, Dict] = {
         "max_translation_languages": 6,
         "ai_content_quality": "standard",
     },
+    # APPIFY internal admin/max plan — treated as Business (highest tier)
+    "max": {
+        "max_platforms": 10,
+        "scheduling": True,
+        "scheduled_posts_per_month": -1,
+        "ab_testing": True,
+        "competitor_analysis": True,
+        "weekly_report": True,
+        "smart_reply": True,
+        "max_translation_languages": 10,
+        "ai_content_quality": "standard",
+    },
+    # AIBuilder plan names that may be forwarded alongside advertising plan
+    "starter": {
+        "max_platforms": 2,
+        "scheduling": False,
+        "scheduled_posts_per_month": 0,
+        "ab_testing": False,
+        "competitor_analysis": False,
+        "weekly_report": False,
+        "smart_reply": False,
+        "max_translation_languages": 0,
+        "ai_content_quality": "basic",
+    },
 }
 
 # Hebrew error messages returned to the agent when a feature is blocked

@@ -38,6 +38,8 @@ PLAN_LIMITS: Dict[str, Dict[str, int]] = {
     "bundle_starter": {"hourly": 20, "daily": 20},
     "bundle_pro":     {"hourly": 50, "daily": 75},
     "bundle_business":{"hourly": 100,"daily": 200},
+    "max":            {"hourly": 500,"daily": 1000},  # APPIFY admin/max plan
+    "starter":        {"hourly": 20, "daily": 20},    # AIBuilder Starter
 }
 
 # Fallback defaults (free plan)
