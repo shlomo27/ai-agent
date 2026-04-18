@@ -116,8 +116,8 @@ async def chat(request: ChatRequest):
     agent = _get_or_create_agent(session_id)
     agent.plan = plan  # keep agent aware of current plan for feature gating
 
-    # Rate limiting check (plan-aware)
-    allowed, reason = RateLimiter.check(session_id, plan=plan)
+    # Rate limiting check (plan-aware, language-aware)
+    allowed, reason = RateLimiter.check(session_id, plan=plan, language=language)
     if not allowed:
         raise HTTPException(status_code=429, detail=reason)
 

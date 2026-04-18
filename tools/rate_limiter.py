@@ -9,6 +9,22 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Tuple
 
+_HE_DAYS = ["שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון"]
+
+
+def _format_reset_time(reset_at: datetime, now: datetime, language: str) -> str:
+    """Return a human-friendly reset time string like 'tomorrow at 07:54' or 'מחר ב-07:54'."""
+    reset_date = reset_at.date()
+    today = now.date()
+    time_str = reset_at.strftime("%H:%M")
+    if reset_date == today:
+        return f"today at {time_str}" if language == "en" else f"היום ב-{time_str}"
+    if reset_date == today + timedelta(days=1):
+        return f"tomorrow at {time_str}" if language == "en" else f"מחר ב-{time_str}"
+    if language == "en":
+        return f"on {reset_at.strftime('%A')} at {time_str}"
+    return f"ביום {_HE_DAYS[reset_at.weekday()]} ב-{time_str}"
+
 logger = logging.getLogger(__name__)
 
 LIMITS_FILE = Path("/tmp/ai-agent-rate-limits.json")
@@ -49,7 +65,7 @@ class RateLimiter:
         LIMITS_FILE.write_text(json.dumps(data, default=str))
 
     @classmethod
-    def check(cls, session_id: str, plan: str = "free") -> Tuple[bool, str]:
+    def check(cls, session_id: str, plan: str = "free", language: str = "he") -> Tuple[bool, str]:
         """
         Check if session is within rate limits for the given plan.
         Returns (allowed, reason_if_blocked).
@@ -69,18 +85,21 @@ class RateLimiter:
         ]
 
         if len(messages) >= daily_limit:
-            # Show exact reset time
             oldest = datetime.fromisoformat(messages[0])
             reset_at = oldest + timedelta(days=1)
-            reset_str = reset_at.strftime("%H:%M")
-            return False, f"הגעת למגבלה היומית ({daily_limit} הודעות). המכסה תתחדש ב-{reset_str} (בעוד {int((reset_at - now).total_seconds() // 60)} דקות)."
+            when = _format_reset_time(reset_at, now, language)
+            if language == "en":
+                return False, f"You've reached the daily limit ({daily_limit} messages). Quota resets {when}."
+            return False, f"הגעת למגבלה היומית ({daily_limit} הודעות). המכסה תתחדש {when}."
 
         last_hour = [m for m in messages if datetime.fromisoformat(m) > now - timedelta(hours=1)]
         if len(last_hour) >= hourly_limit:
             oldest_hour = datetime.fromisoformat(last_hour[0])
             reset_at = oldest_hour + timedelta(hours=1)
-            reset_str = reset_at.strftime("%H:%M")
-            return False, f"יותר מדי הודעות בשעה האחרונה ({hourly_limit} מקסימום). המכסה תתחדש ב-{reset_str}."
+            time_str = reset_at.strftime("%H:%M")
+            if language == "en":
+                return False, f"Too many messages in the last hour ({hourly_limit} max). Quota resets at {time_str}."
+            return False, f"יותר מדי הודעות בשעה האחרונה ({hourly_limit} מקסימום). המכסה תתחדש ב-{time_str}."
 
         return True, ""
 
