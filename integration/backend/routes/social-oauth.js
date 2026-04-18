@@ -69,7 +69,7 @@ const PLATFORM_CONFIG = {
     clientId: process.env.LINKEDIN_CLIENT_ID,
     clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
     redirectUri: process.env.LINKEDIN_REDIRECT_URI,
-    scope: 'openid profile email w_member_social',
+    scope: 'openid profile email',
   },
   twitter: {
     authUrl: 'https://twitter.com/i/oauth2/authorize',
