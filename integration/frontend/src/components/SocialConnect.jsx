@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 
 const PLATFORMS = [
   { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877f2' },
-  { id: 'instagram', label: 'Instagram', icon: '📸', color: '#e1306c' },
+  { id: 'instagram', label: 'Instagram', icon: '📸', color: '#e1306c', comingSoon: true },
   { id: 'twitter',   label: 'Twitter/X', icon: '🐦', color: '#1da1f2' },
   { id: 'linkedin',  label: 'LinkedIn',  icon: '💼', color: '#0077b5' },
   { id: 'tiktok',    label: 'TikTok',    icon: '🎵', color: '#010101' },
@@ -30,6 +30,8 @@ const TEXT = {
     disconnected: 'לא מחובר',
     expired: 'פג תוקף',
     connecting: 'מחבר...',
+    comingSoon: 'בקרוב',
+    comingSoonTooltip: 'Instagram יהיה זמין בקרוב — ממתין לאישור Meta',
     successMsg: (p) => `✅ ${p} חוברה בהצלחה!`,
     errorMsg: (e) => `❌ שגיאה: ${e}`,
     noPlatformsBanner: '⚠️ כדי שה-AI יוכל לפרסם בשמך — חבר לפחות פלטפורמה אחת. לחץ "חבר" ליד הפלטפורמה הרצויה, אשר גישה, וה-AI יתחיל לפרסם אוטומטית.',
@@ -50,6 +52,8 @@ const TEXT = {
     disconnected: 'Not connected',
     expired: 'Token expired',
     connecting: 'Connecting...',
+    comingSoon: 'Coming soon',
+    comingSoonTooltip: 'Instagram coming soon — pending Meta approval',
     successMsg: (p) => `✅ ${p} connected successfully!`,
     errorMsg: (e) => `❌ Error: ${e}`,
     noPlatformsBanner: '⚠️ To let the AI post on your behalf — connect at least one platform. Click "Connect" next to the platform, approve access, and the AI will start posting automatically.',
@@ -199,7 +203,7 @@ export default function SocialConnect({ language = 'he' }) {
         flexWrap: 'wrap',
         gap: 8,
       }}>
-        {PLATFORMS.map(({ id, label, icon, color }) => {
+        {PLATFORMS.map(({ id, label, icon, color, comingSoon }) => {
           const info = status[id];
           const isConnected = info?.connected;
           const isExpired = info?.expired;
@@ -208,6 +212,7 @@ export default function SocialConnect({ language = 'he' }) {
           return (
             <div
               key={id}
+              title={comingSoon ? t.comingSoonTooltip : undefined}
               style={{
                 background: '#12122a',
                 border: `1px solid ${isConnected && !isExpired ? color : '#2a2a3a'}`,
@@ -219,34 +224,35 @@ export default function SocialConnect({ language = 'he' }) {
                 flex: '1 1 140px',
                 minWidth: 130,
                 maxWidth: 200,
+                opacity: comingSoon ? 0.6 : 1,
               }}
             >
               <span style={{ fontSize: 18 }}>{icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{label}</div>
-                <div style={{ fontSize: 10, color: isConnected ? (isExpired ? '#f59e0b' : '#4ade80') : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {isConnected
+                <div style={{ fontSize: 10, color: comingSoon ? '#f59e0b' : isConnected ? (isExpired ? '#f59e0b' : '#4ade80') : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {comingSoon ? t.comingSoon : isConnected
                     ? (isExpired ? t.expired : (info?.pageName || t.connected))
                     : t.disconnected}
                 </div>
               </div>
               <button
-                onClick={() => isConnected ? handleDisconnect(id) : handleConnect(id)}
-                disabled={isLoading}
+                onClick={() => !comingSoon && (isConnected ? handleDisconnect(id) : handleConnect(id))}
+                disabled={isLoading || comingSoon}
                 style={{
-                  background: isConnected ? 'transparent' : color,
-                  color: isConnected ? '#f87171' : '#fff',
-                  border: isConnected ? '1px solid #f87171' : 'none',
+                  background: comingSoon ? '#2a2a3a' : isConnected ? 'transparent' : color,
+                  color: comingSoon ? '#666' : isConnected ? '#f87171' : '#fff',
+                  border: isConnected && !comingSoon ? '1px solid #f87171' : 'none',
                   borderRadius: 6,
                   padding: '4px 8px',
                   fontSize: 11,
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  cursor: comingSoon || isLoading ? 'not-allowed' : 'pointer',
                   opacity: isLoading ? 0.6 : 1,
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
                 }}
               >
-                {isLoading ? t.connecting : (isConnected ? t.disconnect : t.connect)}
+                {isLoading ? t.connecting : comingSoon ? '🔒' : (isConnected ? t.disconnect : t.connect)}
               </button>
             </div>
           );
