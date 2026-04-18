@@ -53,16 +53,15 @@ const PLATFORM_CONFIG = {
     clientId: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     redirectUri: process.env.FACEBOOK_REDIRECT_URI,
-    scope: 'pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management',
+    scope: 'pages_manage_posts,pages_read_engagement,business_management',
   },
   instagram: {
-    // Instagram uses Facebook's OAuth but with different scopes
     authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
     tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
     clientId: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     redirectUri: process.env.FACEBOOK_REDIRECT_URI || process.env.INSTAGRAM_REDIRECT_URI,
-    scope: 'instagram_basic,instagram_content_publish,pages_show_list,business_management',
+    scope: 'instagram_content_publish,pages_show_list,pages_read_engagement,business_management',
   },
   linkedin: {
     authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
