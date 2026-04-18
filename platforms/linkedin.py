@@ -38,20 +38,18 @@ class LinkedInPlatform(BasePlatform):
     async def connect(self) -> PlatformAccount:
         if self.demo_mode:
             return self._demo_account()
-        url = f"{self.BASE_URL}/me"
-        params = {"fields": "id,firstName,lastName,headline,summary,numConnections"}
-        data = await self._request("GET", url, params=params)
-        self._person_urn = f"urn:li:person:{data.get('id', '')}"
-        first = data.get("firstName", {}).get("localized", {})
-        last = data.get("lastName", {}).get("localized", {})
-        first_name = list(first.values())[0] if first else ""
-        last_name = list(last.values())[0] if last else ""
+        # OpenID Connect userinfo endpoint (works with openid+profile scopes)
+        url = "https://api.linkedin.com/v2/userinfo"
+        data = await self._request("GET", url)
+        user_id = data.get("sub", "")
+        self._person_urn = f"urn:li:person:{user_id}"
+        name = data.get("name") or f"{data.get('given_name', '')} {data.get('family_name', '')}".strip()
         return PlatformAccount(
             platform="linkedin",
-            account_id=data.get("id", ""),
-            username=f"{first_name} {last_name}",
-            display_name=f"{first_name} {last_name}",
-            followers_count=data.get("numConnections", 0),
+            account_id=user_id,
+            username=name,
+            display_name=name,
+            followers_count=0,
             is_connected=True,
         )
 
