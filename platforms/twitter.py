@@ -91,7 +91,7 @@ class TwitterPlatform(BasePlatform):
         payload: Dict[str, Any] = {"text": text[:280]}  # Twitter char limit
         if target_id:
             payload["reply"] = {"in_reply_to_tweet_id": target_id}
-        data = await self._request("POST", url, json=payload, headers=self._user_auth_headers())
+        data = await self._request("POST", url, json=payload)
         tweet = data.get("data", {})
         return SocialPost(
             platform="twitter",
@@ -192,7 +192,7 @@ class TwitterPlatform(BasePlatform):
             await self.connect()
         url = f"{self.BASE_URL}/users/{self._user_id}/following"
         payload = {"target_user_id": user_id}
-        data = await self._request("POST", url, json=payload, headers=self._user_auth_headers())
+        data = await self._request("POST", url, json=payload)
         return data.get("data", {}).get("following", False)
 
     async def comment_on_post(self, post_id: str, comment: str) -> bool:
@@ -209,7 +209,7 @@ class TwitterPlatform(BasePlatform):
             await self.connect()
         url = f"{self.BASE_URL}/users/{self._user_id}/likes"
         payload = {"tweet_id": post_id}
-        data = await self._request("POST", url, json=payload, headers=self._user_auth_headers())
+        data = await self._request("POST", url, json=payload)
         return data.get("data", {}).get("liked", False)
 
     async def get_feed(self, limit: int = 20) -> List[SocialPost]:
