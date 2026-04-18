@@ -61,7 +61,7 @@ const PLATFORM_CONFIG = {
     clientId: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     redirectUri: process.env.FACEBOOK_REDIRECT_URI || process.env.INSTAGRAM_REDIRECT_URI,
-    scope: 'instagram_content_publish,pages_show_list,pages_read_engagement,business_management',
+    scope: 'pages_show_list,pages_read_engagement,business_management',
   },
   linkedin: {
     authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
