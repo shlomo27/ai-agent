@@ -191,15 +191,13 @@ router.get('/callback/:platform', async (req, res) => {
       const encodedId = encodeURIComponent(config.clientId);
       const encodedSecret = encodeURIComponent(config.clientSecret);
       const creds = Buffer.from(`${encodedId}:${encodedSecret}`).toString('base64');
-      console.log(`[twitter-debug] clientId="${config.clientId}" hasSecret=${!!config.clientSecret} secretLen=${config.clientSecret?.length} verifierLen=${pkceVerifier?.length} codeLen=${code?.length}`);
       const r = await fetch(config.tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}` },
         body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: config.redirectUri, code_verifier: pkceVerifier }),
       });
-      const rawText = await r.text();
-      console.log(`[twitter-debug] HTTP ${r.status}: ${rawText.slice(0, 400)}`);
-      tokenData = JSON.parse(rawText);
+      tokenData = await r.json();
+      console.log(`[social-oauth] Twitter token response status:`, r.status);
     } else if (platform === 'tiktok') {
       const r = await fetch(config.tokenUrl, {
         method: 'POST',
