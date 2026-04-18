@@ -120,7 +120,7 @@ export default function SocialConnect({ language = 'he' }) {
   // ── Toast helper ────────────────────────────────────────────────────────────
   function showToast(msg, ok) {
     setToast({ msg, ok });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), ok ? 5000 : 15000);
   }
 
   // ── Connect ─────────────────────────────────────────────────────────────────
