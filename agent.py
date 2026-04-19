@@ -271,6 +271,16 @@ ILMARIAI היא פלטפורמת AI מקיפה הכוללת שני מוצרים 
 5. אם `analytics` בתוצאה מכיל נתוני עוקבים/מנויים — הצג אותם. אם לא — כתוב שהנתונים זמינים ב-Facebook Insights / YouTube Studio
 6. **חשוב**: אם `already_publishing` הוא true — **אל תשאל** "רוצה שנתחיל לפרסם?" / "נכתוב את הפוסט הראשון?" — המשתמש כבר מפרסם! הצע במקום: "רוצה שאתכנן לוח תוכן לשבוע הבא?"
 
+## 📈 ניתוח ביצועים — כללי חובה:
+
+כאשר משתמש מבקש ניתוח ביצועים / ביצועי הפרסום:
+1. **חובה** לקרוא לכלי `get_campaign_performance` — **אסור** לכתוב ניתוח ללא קריאה לכלי
+2. **אסור** להמציא מספרים (חשיפות, לייקים, עוקבים) — הם יוצאו כ-demo בלבד ואינם אמיתיים
+3. הצג רק את `connected_platforms` שהכלי מחזיר — אלו הפלטפורמות האמיתיות
+4. אל תציין `not_connected_platforms` כ"פעילות" — הן אינן מחוברות
+5. אם הכלי מחזיר `error: no_connected_platforms` — הסבר שצריך לחבר פלטפורמות
+6. עבור נתוני engagement מפורטים — הפנה ישירות ל-Facebook Business Manager / YouTube Studio / LinkedIn Analytics
+
 היה ידידותי, מקצועי ומעורר השראה.
 תגובות קצרות וממוקדות — לא טבלאות ארוכות וכותרות גדולות.
 
@@ -1174,7 +1184,7 @@ class AdvertisingAgent:
 
             # Analytics tools
             elif tool_name == "get_campaign_performance":
-                return await analytics_tools.get_campaign_performance(**tool_input)
+                return await analytics_tools.get_campaign_performance(session_id=self.session_id, **tool_input)
             elif tool_name == "compare_platforms_performance":
                 return await analytics_tools.compare_platforms_performance(**tool_input)
             elif tool_name == "get_audience_insights":

@@ -3,7 +3,7 @@ Analytics and performance tracking tools.
 """
 from __future__ import annotations
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -21,102 +21,149 @@ def store_campaign(campaign_id: str, campaign_data: Dict[str, Any]):
     _campaign_store[campaign_id] = campaign_data
 
 
+def _real_post_counts(session_id: str, days: int = 30) -> Dict[str, int]:
+    """Count actual published posts per platform from scheduler + audit log."""
+    counts: Dict[str, int] = {}
+    cutoff = datetime.now() - timedelta(days=days)
+    try:
+        from tools.scheduler import PostScheduler
+        for j in PostScheduler._load_jobs():
+            if j.get("session_id") != session_id:
+                continue
+            raw = j.get("created_at") or j.get("scheduled_for", "")
+            try:
+                ts = datetime.fromisoformat(raw.replace("+00:00", "")).replace(tzinfo=None)
+            except Exception:
+                continue
+            if ts < cutoff:
+                continue
+            for p in j.get("platforms", []):
+                counts[p] = counts.get(p, 0) + 1
+    except Exception as e:
+        logger.warning(f"Could not load scheduler data: {e}")
+    try:
+        from tools.action_log import get_action_log
+        kws = ("post_published", "publish", "פרסם", "פרסום", "posted")
+        for entry in get_action_log(session_id, limit=200):
+            try:
+                ts = datetime.fromisoformat(entry["timestamp"])
+            except Exception:
+                continue
+            if ts.replace(tzinfo=None) < cutoff:
+                continue
+            text = (entry.get("action_type", "") + " " + entry.get("description", "")).lower()
+            if not any(k in text for k in kws):
+                continue
+            details = entry.get("details", {})
+            plats = details.get("platforms") or (
+                [details["platform"]] if details.get("platform") else []
+            )
+            for p in plats:
+                counts[p] = counts.get(p, 0) + 1
+    except Exception as e:
+        logger.warning(f"Could not load audit log: {e}")
+    return counts
+
+
+def _fetch_real_stats(platform_name: str, platform) -> Dict[str, Any]:
+    """Fetch real follower/subscriber data via a quick synchronous HTTP call."""
+    try:
+        import httpx
+        token = getattr(platform, "access_token", "")
+        if not token:
+            return {}
+        if platform_name == "youtube" and getattr(platform, "_oauth_mode", False):
+            r = httpx.get(
+                "https://www.googleapis.com/youtube/v3/channels",
+                params={"part": "statistics", "mine": "true"},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=8, follow_redirects=True,
+            )
+            if r.status_code == 200:
+                items = r.json().get("items", [])
+                if items:
+                    s = items[0].get("statistics", {})
+                    return {"subscribers": s.get("subscriberCount"), "total_views": s.get("viewCount")}
+        elif platform_name == "facebook":
+            page_id = getattr(platform, "page_id", None)
+            if page_id:
+                r = httpx.get(
+                    f"https://graph.facebook.com/{page_id}",
+                    params={"fields": "fan_count,followers_count", "access_token": token},
+                    timeout=8,
+                )
+                if r.status_code == 200:
+                    d = r.json()
+                    fans = d.get("followers_count") or d.get("fan_count")
+                    if fans is not None:
+                        return {"followers": fans}
+    except Exception as e:
+        logger.warning(f"Real stats fetch failed for {platform_name}: {e}")
+    return {}
+
+
 async def get_campaign_performance(
     campaign_id: Optional[str] = None,
     platforms: Optional[List[str]] = None,
     days: int = 30,
+    session_id: str = "",
 ) -> Dict[str, Any]:
     """
     Get overall campaign performance metrics across platforms.
-
-    Args:
-        campaign_id: Optional campaign ID to filter by
-        platforms: List of platforms to include (defaults to all connected)
-        days: Number of days to analyze
+    Only shows actually-connected (non-demo) platforms.
     """
-    if not platforms:
-        platforms = list(_platform_registry.keys())
-
-    results = {}
-    totals = {
-        "total_reach": 0,
-        "total_impressions": 0,
-        "total_likes": 0,
-        "total_comments": 0,
-        "total_shares": 0,
-        "total_followers_gained": 0,
-        "total_posts": 0,
+    # Only work with platforms that have real tokens
+    connected = {
+        name: p for name, p in _platform_registry.items()
+        if not getattr(p, "demo_mode", True)
     }
 
-    for platform_name in platforms:
-        p = _platform_registry.get(platform_name)
-        if not p:
-            continue
-        try:
-            metrics = await p.get_metrics(days)
-            results[platform_name] = {
-                "followers_gained": metrics.followers_gained,
-                "posts_published": metrics.posts_published,
-                "reach": metrics.total_reach,
-                "impressions": metrics.total_impressions,
-                "likes": metrics.total_likes,
-                "comments": metrics.total_comments,
-                "shares": metrics.total_shares,
-                "engagement_rate": metrics.engagement_rate,
-                "best_times": metrics.best_posting_times,
-            }
-            totals["total_reach"] += metrics.total_reach
-            totals["total_impressions"] += metrics.total_impressions
-            totals["total_likes"] += metrics.total_likes
-            totals["total_comments"] += metrics.total_comments
-            totals["total_shares"] += metrics.total_shares
-            totals["total_followers_gained"] += metrics.followers_gained
-            totals["total_posts"] += metrics.posts_published
-        except Exception as e:
-            results[platform_name] = {"error": str(e)}
+    if platforms:
+        connected = {k: v for k, v in connected.items() if k in platforms}
 
-    overall_engagement = (
-        (totals["total_likes"] + totals["total_comments"] + totals["total_shares"]) /
-        max(totals["total_impressions"], 1) * 100
-    )
+    if not connected:
+        return {
+            "error": "no_connected_platforms",
+            "message": "לא נמצאו פלטפורמות מחוברות עם טוקן אמיתי. וודא שחיברת את הפלטפורמות דרך הפאנל.",
+            "period_days": days,
+            "platforms": {},
+        }
+
+    # Count real published posts from our own tracking
+    post_counts = _real_post_counts(session_id, days) if session_id else {}
+
+    results: Dict[str, Any] = {}
+    for platform_name, p in connected.items():
+        entry: Dict[str, Any] = {
+            "connected": True,
+            "posts_tracked": post_counts.get(platform_name, 0),
+            "note": "נתוני engagement (חשיפות, לייקים) זמינים ישירות בפלטפורמה",
+        }
+        # Fetch any real stats we can get from the API
+        real = _fetch_real_stats(platform_name, p)
+        entry.update(real)
+        results[platform_name] = entry
+
+    not_connected = [
+        name for name, p in _platform_registry.items()
+        if getattr(p, "demo_mode", True)
+    ]
 
     return {
         "campaign_id": campaign_id,
         "period_days": days,
+        "connected_platforms": list(connected.keys()),
+        "not_connected_platforms": not_connected,
         "platforms": results,
-        "totals": totals,
-        "overall_engagement_rate": round(overall_engagement, 2),
-        "best_performing_platform": max(
-            results.items(),
-            key=lambda x: x[1].get("engagement_rate", 0) if isinstance(x[1], dict) else 0,
-            default=("N/A", {})
-        )[0] if results else "N/A",
-        "recommendation": _generate_performance_recommendation(results, totals),
+        "total_posts_tracked": sum(post_counts.values()),
+        "data_note": (
+            "נתוני posts_tracked מגיעים מהמעקב הפנימי שלנו. "
+            "נתוני חשיפה/מעורבות מדויקים זמינים ב: "
+            "Facebook → Business Manager, YouTube → Studio Analytics, "
+            "Twitter → Analytics, LinkedIn → Company Page Analytics."
+        ),
     }
 
-
-def _generate_performance_recommendation(
-    results: Dict[str, Any],
-    totals: Dict[str, int],
-) -> str:
-    """Generate a performance recommendation based on metrics."""
-    if not results:
-        return "Connect platforms to get performance insights"
-
-    best_platform = max(
-        results.items(),
-        key=lambda x: x[1].get("engagement_rate", 0) if isinstance(x[1], dict) else 0,
-        default=("N/A", {})
-    )
-
-    rec = f"הפלטפורמה הטובה ביותר שלך היא {best_platform[0]} עם שיעור מעורבות של {best_platform[1].get('engagement_rate', 0):.1f}%. "
-
-    if totals["total_followers_gained"] < 100:
-        rec += "מומלץ להגדיל את תדירות הפרסום ולשפר את איכות התוכן. "
-    elif totals["total_followers_gained"] > 500:
-        rec += "גדילה מצוינת! שקלו להשקיע בפרסום ממומן כדי לזרז את הצמיחה. "
-
-    return rec
 
 
 async def compare_platforms_performance(
