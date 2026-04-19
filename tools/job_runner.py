@@ -54,6 +54,38 @@ async def run_scheduled_posts():
 async def _publish_job(job: Dict[str, Any]):
     """Publish a single scheduled job to its platforms."""
     import tools.social_tools as social_tools
+    from tools.token_store import load_tokens
+    from platforms.facebook import FacebookPlatform
+    from platforms.instagram import InstagramPlatform
+    from platforms.twitter import TwitterPlatform
+    from platforms.linkedin import LinkedInPlatform
+    from platforms.youtube import YoutubePlatform
+    from platforms.tiktok import TikTokPlatform
+    from platforms.reddit import RedditPlatform
+
+    # Re-register platforms with stored tokens so job fires even without active session
+    session_id = job.get("session_id", "")
+    stored = load_tokens(session_id) if session_id else None
+    if stored:
+        tokens = stored.get("tokens", {})
+        page_ids = stored.get("page_ids", {})
+        _cls = {
+            "facebook": lambda t, p: FacebookPlatform(access_token=t, page_id=p),
+            "instagram": lambda t, _: InstagramPlatform(access_token=t),
+            "twitter": lambda t, _: TwitterPlatform(access_token=t),
+            "linkedin": lambda t, _: LinkedInPlatform(access_token=t),
+            "youtube": lambda t, _: YoutubePlatform(access_token=t),
+            "tiktok": lambda t, _: TikTokPlatform(access_token=t),
+            "reddit": lambda t, _: RedditPlatform(access_token=t),
+        }
+        for platform_name in job["platforms"]:
+            token = tokens.get(platform_name)
+            if token and platform_name in _cls:
+                platform = _cls[platform_name](token, page_ids.get(platform_name))
+                social_tools.register_platform(platform_name, platform)
+                logger.info(f"Job runner: re-registered {platform_name} for session {session_id}")
+    else:
+        logger.warning(f"Job runner: no stored tokens for session {session_id}")
 
     result = await social_tools.post_content(
         platforms=job["platforms"],

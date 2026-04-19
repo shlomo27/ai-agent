@@ -212,12 +212,25 @@ class PostScheduler:
         if session_id:
             jobs = [j for j in jobs if j.get("session_id") == session_id]
 
+        # Convert scheduled_for to Israel time for display
+        display_jobs = []
+        for j in sorted(jobs, key=lambda x: x["scheduled_for"])[:20]:
+            d = dict(j)
+            try:
+                dt = datetime.fromisoformat(d["scheduled_for"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                d["scheduled_for_display"] = _format_israel_time(dt)
+            except Exception:
+                d["scheduled_for_display"] = d["scheduled_for"]
+            display_jobs.append(d)
+
         return {
             "total": len(jobs),
             "pending": len([j for j in jobs if j["status"] == "pending"]),
             "published": len([j for j in jobs if j["status"] == "published"]),
             "cancelled": len([j for j in jobs if j["status"] == "cancelled"]),
-            "jobs": sorted(jobs, key=lambda x: x["scheduled_for"])[:20],
+            "jobs": display_jobs,
         }
 
 

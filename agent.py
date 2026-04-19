@@ -908,6 +908,9 @@ class AdvertisingAgent:
     def set_platform_tokens(self, tokens: Dict[str, str], page_ids: Dict[str, str] = None) -> None:
         """Update platform instances with per-user OAuth tokens (plan-gated)."""
         page_ids = page_ids or {}
+        # Persist tokens to disk so job runner can publish scheduled posts later
+        from tools.token_store import save_tokens
+        save_tokens(self.session_id, tokens, page_ids)
         # Count currently connected (real token) platforms
         already_connected = sum(
             1 for p in self.platforms.values() if not getattr(p, "demo_mode", True)
