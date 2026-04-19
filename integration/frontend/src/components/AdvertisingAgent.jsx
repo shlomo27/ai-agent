@@ -197,7 +197,9 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
   const userNameRef = useRef('');
 
   // localStorage key per user (fallback when backend history is wiped on redeploy)
-  const chatStorageKey = user?.id ? `adv_chat_${user.id}` : null;
+  // Support MongoDB _id as well as user.id
+  const userId = user?.id || user?._id || null;
+  const chatStorageKey = userId ? `adv_chat_${userId}` : null;
 
   const t = UI_TEXT[language] || UI_TEXT.he;
 
@@ -239,8 +241,7 @@ export default function AdvertisingAgent({ language: langProp, onLanguageChange,
         setMessages(history);
         setHasRealHistory(true);
       } else {
-        const storageKey = user?.id ? `adv_chat_${user.id}` : null;
-        const cached = storageKey ? localStorage.getItem(storageKey) : null;
+        const cached = chatStorageKey ? localStorage.getItem(chatStorageKey) : null;
         if (cached) {
           try {
             const cachedMsgs = JSON.parse(cached);
@@ -313,12 +314,13 @@ After I answer (even with "no"), write the post immediately without asking more 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Persist messages to localStorage so refresh doesn't wipe the chat
+  // Persist messages to localStorage so refresh doesn't wipe the chat.
+  // Save whenever there are more than 1 message (i.e. user has sent at least one).
   useEffect(() => {
-    if (hasRealHistory && chatStorageKey && messages.length > 0) {
+    if (chatStorageKey && messages.length > 1) {
       localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-60)));
     }
-  }, [messages, hasRealHistory, chatStorageKey]);
+  }, [messages, chatStorageKey]);
 
   const sendMessage = async (text) => {
     const msgText = text || input;
