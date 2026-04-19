@@ -66,40 +66,259 @@ def _real_post_counts(session_id: str, days: int = 30) -> Dict[str, int]:
 
 
 def _fetch_real_stats(platform_name: str, platform) -> Dict[str, Any]:
-    """Fetch real follower/subscriber data via a quick synchronous HTTP call."""
+    """Fetch real analytics from a connected platform (synchronous httpx)."""
     try:
         import httpx
         token = getattr(platform, "access_token", "")
         if not token:
             return {}
+
         if platform_name == "youtube" and getattr(platform, "_oauth_mode", False):
-            r = httpx.get(
-                "https://www.googleapis.com/youtube/v3/channels",
-                params={"part": "statistics", "mine": "true"},
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=8, follow_redirects=True,
-            )
-            if r.status_code == 200:
-                items = r.json().get("items", [])
-                if items:
-                    s = items[0].get("statistics", {})
-                    return {"subscribers": s.get("subscriberCount"), "total_views": s.get("viewCount")}
+            return _fetch_youtube_stats(token)
         elif platform_name == "facebook":
-            page_id = getattr(platform, "page_id", None)
-            if page_id:
-                r = httpx.get(
-                    f"https://graph.facebook.com/{page_id}",
-                    params={"fields": "fan_count,followers_count", "access_token": token},
-                    timeout=8,
-                )
-                if r.status_code == 200:
-                    d = r.json()
-                    fans = d.get("followers_count") or d.get("fan_count")
-                    if fans is not None:
-                        return {"followers": fans}
+            return _fetch_facebook_stats(token, getattr(platform, "page_id", None))
+        elif platform_name == "twitter":
+            return _fetch_twitter_stats(token)
+        elif platform_name == "linkedin":
+            return _fetch_linkedin_stats(token)
+
     except Exception as e:
         logger.warning(f"Real stats fetch failed for {platform_name}: {e}")
     return {}
+
+
+def _fetch_youtube_stats(token: str) -> Dict[str, Any]:
+    """Fetch YouTube channel stats + per-video breakdown."""
+    import httpx
+    result: Dict[str, Any] = {}
+    try:
+        # Channel-level stats
+        r = httpx.get(
+            "https://www.googleapis.com/youtube/v3/channels",
+            params={"part": "statistics,contentDetails", "mine": "true"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10, follow_redirects=True,
+        )
+        if r.status_code != 200:
+            return {"error": f"YouTube API {r.status_code}"}
+        items = r.json().get("items", [])
+        if not items:
+            return {}
+        ch = items[0]
+        stats = ch.get("statistics", {})
+        result["subscribers"] = int(stats.get("subscriberCount", 0))
+        result["total_views"] = int(stats.get("viewCount", 0))
+        result["total_videos"] = int(stats.get("videoCount", 0))
+
+        # Per-video stats via uploads playlist
+        uploads_playlist = (
+            ch.get("contentDetails", {})
+            .get("relatedPlaylists", {})
+            .get("uploads", "")
+        )
+        if uploads_playlist:
+            pl_r = httpx.get(
+                "https://www.googleapis.com/youtube/v3/playlistItems",
+                params={
+                    "part": "contentDetails",
+                    "playlistId": uploads_playlist,
+                    "maxResults": "10",
+                },
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            if pl_r.status_code == 200:
+                video_ids = [
+                    item["contentDetails"]["videoId"]
+                    for item in pl_r.json().get("items", [])
+                ]
+                if video_ids:
+                    vid_r = httpx.get(
+                        "https://www.googleapis.com/youtube/v3/videos",
+                        params={
+                            "part": "statistics,snippet",
+                            "id": ",".join(video_ids),
+                        },
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=10,
+                    )
+                    if vid_r.status_code == 200:
+                        videos = []
+                        for v in vid_r.json().get("items", []):
+                            vs = v.get("statistics", {})
+                            videos.append({
+                                "title": v.get("snippet", {}).get("title", "")[:60],
+                                "views": int(vs.get("viewCount", 0)),
+                                "likes": int(vs.get("likeCount", 0)),
+                                "comments": int(vs.get("commentCount", 0)),
+                            })
+                        result["videos"] = sorted(videos, key=lambda x: x["views"], reverse=True)
+    except Exception as e:
+        logger.warning(f"YouTube stats error: {e}")
+    return result
+
+
+def _fetch_facebook_stats(token: str, page_id: str = None) -> Dict[str, Any]:
+    """Fetch Facebook page stats + recent post insights."""
+    import httpx
+    result: Dict[str, Any] = {}
+    try:
+        # Resolve page token if only user token
+        if not page_id:
+            pages_r = httpx.get(
+                "https://graph.facebook.com/me/accounts",
+                params={"fields": "id,name,access_token,fan_count", "access_token": token},
+                timeout=8,
+            )
+            if pages_r.status_code == 200:
+                pages = pages_r.json().get("data", [])
+                if pages:
+                    page_id = pages[0]["id"]
+                    token = pages[0].get("access_token", token)
+                    result["followers"] = pages[0].get("fan_count", 0)
+                    result["page_name"] = pages[0].get("name", "")
+
+        if not page_id:
+            return result
+
+        # Page summary
+        page_r = httpx.get(
+            f"https://graph.facebook.com/{page_id}",
+            params={
+                "fields": "fan_count,followers_count,name",
+                "access_token": token,
+            },
+            timeout=8,
+        )
+        if page_r.status_code == 200:
+            d = page_r.json()
+            result["followers"] = d.get("followers_count") or d.get("fan_count", 0)
+            result["page_name"] = d.get("name", "")
+
+        # Recent posts with engagement
+        posts_r = httpx.get(
+            f"https://graph.facebook.com/{page_id}/posts",
+            params={
+                "fields": "message,created_time,likes.summary(true),comments.summary(true),shares",
+                "limit": "5",
+                "access_token": token,
+            },
+            timeout=8,
+        )
+        if posts_r.status_code == 200:
+            posts = []
+            for p in posts_r.json().get("data", []):
+                posts.append({
+                    "preview": (p.get("message") or "")[:50],
+                    "likes": p.get("likes", {}).get("summary", {}).get("total_count", 0),
+                    "comments": p.get("comments", {}).get("summary", {}).get("total_count", 0),
+                    "shares": p.get("shares", {}).get("count", 0),
+                })
+            if posts:
+                result["recent_posts"] = posts
+
+    except Exception as e:
+        logger.warning(f"Facebook stats error: {e}")
+    return result
+
+
+def _fetch_twitter_stats(token: str) -> Dict[str, Any]:
+    """Fetch Twitter/X user metrics for recent tweets."""
+    import httpx
+    result: Dict[str, Any] = {}
+    try:
+        # Get authenticated user
+        me_r = httpx.get(
+            "https://api.twitter.com/2/users/me",
+            params={"user.fields": "public_metrics"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8,
+        )
+        if me_r.status_code != 200:
+            return {}
+        user = me_r.json().get("data", {})
+        metrics = user.get("public_metrics", {})
+        result["followers"] = metrics.get("followers_count", 0)
+        result["following"] = metrics.get("following_count", 0)
+        result["tweet_count"] = metrics.get("tweet_count", 0)
+
+        # Recent tweets with metrics
+        user_id = user.get("id")
+        if user_id:
+            tweets_r = httpx.get(
+                f"https://api.twitter.com/2/users/{user_id}/tweets",
+                params={
+                    "tweet.fields": "public_metrics,created_at",
+                    "max_results": "5",
+                },
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=8,
+            )
+            if tweets_r.status_code == 200:
+                tweets = []
+                for t in tweets_r.json().get("data", []):
+                    pm = t.get("public_metrics", {})
+                    tweets.append({
+                        "preview": t.get("text", "")[:50],
+                        "likes": pm.get("like_count", 0),
+                        "retweets": pm.get("retweet_count", 0),
+                        "replies": pm.get("reply_count", 0),
+                        "impressions": pm.get("impression_count", 0),
+                    })
+                if tweets:
+                    result["recent_tweets"] = tweets
+    except Exception as e:
+        logger.warning(f"Twitter stats error: {e}")
+    return result
+
+
+def _fetch_linkedin_stats(token: str) -> Dict[str, Any]:
+    """Fetch LinkedIn profile/page follower count."""
+    import httpx
+    result: Dict[str, Any] = {}
+    try:
+        # Try organization followers (Company Page)
+        orgs_r = httpx.get(
+            "https://api.linkedin.com/v2/organizationAcls",
+            params={"q": "roleAssignee", "role": "ADMINISTRATOR", "projection": "(elements*(organization~(localizedName,id)))"},
+            headers={"Authorization": f"Bearer {token}", "X-Restli-Protocol-Version": "2.0.0"},
+            timeout=8,
+        )
+        if orgs_r.status_code == 200:
+            elements = orgs_r.json().get("elements", [])
+            if elements:
+                org = elements[0].get("organization~", {})
+                org_id_url = elements[0].get("organization", "")
+                org_id = org_id_url.split(":")[-1] if org_id_url else None
+                result["page_name"] = org.get("localizedName", "")
+                if org_id:
+                    stats_r = httpx.get(
+                        f"https://api.linkedin.com/v2/networkSizes/urn:li:organization:{org_id}",
+                        params={"edgeType": "CompanyFollowedByMember"},
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=8,
+                    )
+                    if stats_r.status_code == 200:
+                        result["followers"] = stats_r.json().get("firstDegreeSize", 0)
+            return result
+
+        # Fallback: personal profile
+        profile_r = httpx.get(
+            "https://api.linkedin.com/v2/me",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8,
+        )
+        if profile_r.status_code == 200:
+            p = profile_r.json()
+            first = p.get("localizedFirstName", "")
+            last = p.get("localizedLastName", "")
+            result["profile_name"] = f"{first} {last}".strip()
+
+    except Exception as e:
+        logger.warning(f"LinkedIn stats error: {e}")
+    return result
+
+
 
 
 async def get_campaign_performance(
