@@ -1,14 +1,54 @@
 """
 Scheduled posting engine - posts content at optimal times automatically.
 Uses APScheduler for job management.
+All times are stored in UTC internally; displayed in Israel time (Asia/Jerusalem).
 """
 from __future__ import annotations
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 import uuid
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore
+
+ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
+
+
+def _now_utc() -> datetime:
+    return datetime.now(tz=timezone.utc)
+
+
+def _now_israel() -> datetime:
+    return datetime.now(tz=ISRAEL_TZ)
+
+
+def _parse_scheduled_for(scheduled_for: str) -> datetime:
+    """
+    Parse a scheduled_for string into an aware UTC datetime.
+    Input may be ISO format with or without timezone.
+    Assumed to be Israel time if no timezone info present.
+    """
+    try:
+        dt = datetime.fromisoformat(scheduled_for)
+        if dt.tzinfo is None:
+            # Treat naive datetime as Israel local time
+            dt = dt.replace(tzinfo=ISRAEL_TZ)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _format_israel_time(dt: datetime) -> str:
+    """Format a datetime as Israel local time string for display."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    israel_dt = dt.astimezone(ISRAEL_TZ)
+    return israel_dt.strftime("%A %d/%m/%Y בשעה %H:%M")
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +139,20 @@ class PostScheduler:
     def get_due_jobs(cls) -> List[Dict]:
         """Get jobs that are due to be published now."""
         jobs = cls._load_jobs()
-        now = datetime.now()
-        return [
-            j for j in jobs
-            if j["status"] == "pending"
-            and datetime.fromisoformat(j["scheduled_for"]) <= now
-        ]
+        now = _now_utc()
+        due = []
+        for j in jobs:
+            if j["status"] != "pending":
+                continue
+            try:
+                sched = datetime.fromisoformat(j["scheduled_for"])
+                if sched.tzinfo is None:
+                    sched = sched.replace(tzinfo=timezone.utc)
+                if sched <= now:
+                    due.append(j)
+            except Exception:
+                pass
+        return due
 
     @classmethod
     def mark_published(cls, job_id: str):
@@ -137,24 +185,26 @@ class PostScheduler:
 
     @classmethod
     def get_next_optimal_time(cls, platform: str, days_ahead: int = 7) -> datetime:
-        """Find the next optimal posting time for a platform."""
+        """Find the next optimal posting time for a platform (returned as UTC)."""
         times = OPTIMAL_TIMES.get(platform, [{"day": "mon", "hour": 9}])
-        now = datetime.now()
+        now_il = _now_israel()
         best = None
 
         for slot in times:
             target_weekday = DAY_MAP.get(slot["day"], 0)
-            days_until = (target_weekday - now.weekday()) % 7
-            if days_until == 0 and now.hour >= slot["hour"]:
+            days_until = (target_weekday - now_il.weekday()) % 7
+            if days_until == 0 and now_il.hour >= slot["hour"]:
                 days_until = 7
 
-            candidate = (now + timedelta(days=days_until)).replace(
-                hour=slot["hour"], minute=0, second=0, microsecond=0
+            candidate_il = (now_il + timedelta(days=days_until)).replace(
+                hour=slot["hour"], minute=0, second=0, microsecond=0,
+                tzinfo=ISRAEL_TZ,
             )
-            if best is None or candidate < best:
-                best = candidate
+            if best is None or candidate_il < best:
+                best = candidate_il
 
-        return best or (now + timedelta(hours=24))
+        result = best or (now_il + timedelta(hours=24)).replace(tzinfo=ISRAEL_TZ)
+        return result.astimezone(timezone.utc)
 
     @classmethod
     def get_all_jobs_summary(cls, session_id: str) -> Dict[str, Any]:
@@ -186,9 +236,8 @@ def schedule_post(
         if scheduled_for == "optimal":
             post_time = PostScheduler.get_next_optimal_time(platform)
         else:
-            try:
-                post_time = datetime.fromisoformat(scheduled_for)
-            except Exception:
+            post_time = _parse_scheduled_for(scheduled_for)
+            if post_time is None:
                 post_time = PostScheduler.get_next_optimal_time(platform)
 
         post = ScheduledPost(
@@ -202,7 +251,7 @@ def schedule_post(
         job_id = PostScheduler.add_job(post)
         results[platform] = {
             "job_id": job_id,
-            "scheduled_for": post_time.strftime("%A %d/%m/%Y בשעה %H:%M"),
+            "scheduled_for": _format_israel_time(post_time),
             "status": "scheduled",
         }
 
