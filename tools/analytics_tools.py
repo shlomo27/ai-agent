@@ -159,66 +159,70 @@ def _fetch_youtube_stats(token: str) -> Dict[str, Any]:
 
 
 def _fetch_facebook_stats(token: str, page_id: str = None) -> Dict[str, Any]:
-    """Fetch Facebook page stats + recent post insights."""
+    """Fetch Facebook page stats + recent post insights using Page Access Token."""
     import httpx
     result: Dict[str, Any] = {}
+    page_token = token  # may be upgraded to Page Access Token below
     try:
-        # Resolve page token if only user token
-        if not page_id:
-            pages_r = httpx.get(
-                "https://graph.facebook.com/me/accounts",
-                params={"fields": "id,name,access_token,fan_count", "access_token": token},
-                timeout=8,
-            )
-            if pages_r.status_code == 200:
-                pages = pages_r.json().get("data", [])
-                if pages:
-                    page_id = pages[0]["id"]
-                    token = pages[0].get("access_token", token)
-                    result["followers"] = pages[0].get("fan_count", 0)
-                    result["page_name"] = pages[0].get("name", "")
+        # Always fetch accounts to get Page Access Token (needed for insights)
+        accounts_r = httpx.get(
+            "https://graph.facebook.com/me/accounts",
+            params={"fields": "id,name,access_token,fan_count,followers_count", "access_token": token},
+            timeout=8,
+        )
+        if accounts_r.status_code == 200:
+            pages = accounts_r.json().get("data", [])
+            # Match the stored page_id or take the first page
+            matched = next((p for p in pages if p.get("id") == str(page_id)), None) if page_id else None
+            matched = matched or (pages[0] if pages else None)
+            if matched:
+                page_id = matched["id"]
+                page_token = matched.get("access_token", token)  # Page Access Token
+                result["page_name"] = matched.get("name", "")
+                result["followers"] = matched.get("followers_count") or matched.get("fan_count", 0)
 
         if not page_id:
             return result
 
-        # Page summary
+        # Page details with Page Access Token
         page_r = httpx.get(
             f"https://graph.facebook.com/{page_id}",
-            params={
-                "fields": "fan_count,followers_count,name",
-                "access_token": token,
-            },
+            params={"fields": "fan_count,followers_count,name,posts_count", "access_token": page_token},
             timeout=8,
         )
         if page_r.status_code == 200:
             d = page_r.json()
-            result["followers"] = d.get("followers_count") or d.get("fan_count", 0)
-            result["page_name"] = d.get("name", "")
+            result["followers"] = d.get("followers_count") or d.get("fan_count") or result.get("followers", 0)
+            result["page_name"] = result.get("page_name") or d.get("name", "")
 
-        # Recent posts with engagement
+        # Recent posts with engagement (requires Page Access Token)
         posts_r = httpx.get(
             f"https://graph.facebook.com/{page_id}/posts",
             params={
-                "fields": "message,created_time,likes.summary(true),comments.summary(true),shares",
+                "fields": "message,story,created_time,likes.summary(true),comments.summary(true),shares",
                 "limit": "5",
-                "access_token": token,
+                "access_token": page_token,
             },
             timeout=8,
         )
         if posts_r.status_code == 200:
             posts = []
             for p in posts_r.json().get("data", []):
+                text = p.get("message") or p.get("story") or ""
                 posts.append({
-                    "preview": (p.get("message") or "")[:50],
+                    "preview": text[:60],
                     "likes": p.get("likes", {}).get("summary", {}).get("total_count", 0),
                     "comments": p.get("comments", {}).get("summary", {}).get("total_count", 0),
                     "shares": p.get("shares", {}).get("count", 0),
                 })
             if posts:
                 result["recent_posts"] = posts
+        else:
+            result["posts_note"] = f"posts API {posts_r.status_code}"
 
     except Exception as e:
         logger.warning(f"Facebook stats error: {e}")
+        result["error"] = str(e)
     return result
 
 
@@ -273,15 +277,42 @@ def _fetch_twitter_stats(token: str) -> Dict[str, Any]:
 
 
 def _fetch_linkedin_stats(token: str) -> Dict[str, Any]:
-    """Fetch LinkedIn profile/page follower count."""
+    """Fetch LinkedIn profile/company-page stats."""
     import httpx
     result: Dict[str, Any] = {}
+    headers = {"Authorization": f"Bearer {token}", "X-Restli-Protocol-Version": "2.0.0"}
     try:
-        # Try organization followers (Company Page)
+        # 1. Personal profile (always available)
+        profile_r = httpx.get(
+            "https://api.linkedin.com/v2/me",
+            params={"projection": "(id,localizedFirstName,localizedLastName)"},
+            headers=headers,
+            timeout=8,
+        )
+        if profile_r.status_code == 200:
+            p = profile_r.json()
+            name = f"{p.get('localizedFirstName','')} {p.get('localizedLastName','')}".strip()
+            result["profile_name"] = name
+            result["linkedin_id"] = p.get("id", "")
+
+        # 2. Connection count (personal network size)
+        conn_r = httpx.get(
+            "https://api.linkedin.com/v2/connections",
+            params={"q": "viewer", "projection": "(paging)"},
+            headers=headers,
+            timeout=8,
+        )
+        if conn_r.status_code == 200:
+            total = conn_r.json().get("paging", {}).get("total", None)
+            if total is not None:
+                result["connections"] = total
+
+        # 3. Company pages where user is admin (optional — only works with r_organization_social scope)
         orgs_r = httpx.get(
             "https://api.linkedin.com/v2/organizationAcls",
-            params={"q": "roleAssignee", "role": "ADMINISTRATOR", "projection": "(elements*(organization~(localizedName,id)))"},
-            headers={"Authorization": f"Bearer {token}", "X-Restli-Protocol-Version": "2.0.0"},
+            params={"q": "roleAssignee", "role": "ADMINISTRATOR",
+                    "projection": "(elements*(organization~(localizedName,id)))"},
+            headers=headers,
             timeout=8,
         )
         if orgs_r.status_code == 200:
@@ -289,30 +320,19 @@ def _fetch_linkedin_stats(token: str) -> Dict[str, Any]:
             if elements:
                 org = elements[0].get("organization~", {})
                 org_id_url = elements[0].get("organization", "")
-                org_id = org_id_url.split(":")[-1] if org_id_url else None
-                result["page_name"] = org.get("localizedName", "")
+                org_id = org_id_url.split(":")[-1] if ":" in org_id_url else org_id_url
+                result["company_page"] = org.get("localizedName", "")
                 if org_id:
-                    stats_r = httpx.get(
+                    size_r = httpx.get(
                         f"https://api.linkedin.com/v2/networkSizes/urn:li:organization:{org_id}",
                         params={"edgeType": "CompanyFollowedByMember"},
-                        headers={"Authorization": f"Bearer {token}"},
+                        headers=headers,
                         timeout=8,
                     )
-                    if stats_r.status_code == 200:
-                        result["followers"] = stats_r.json().get("firstDegreeSize", 0)
-            return result
-
-        # Fallback: personal profile
-        profile_r = httpx.get(
-            "https://api.linkedin.com/v2/me",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=8,
-        )
-        if profile_r.status_code == 200:
-            p = profile_r.json()
-            first = p.get("localizedFirstName", "")
-            last = p.get("localizedLastName", "")
-            result["profile_name"] = f"{first} {last}".strip()
+                    if size_r.status_code == 200:
+                        result["page_followers"] = size_r.json().get("firstDegreeSize", 0)
+        elif orgs_r.status_code == 403:
+            result["company_page_note"] = "נדרשת הרשאת r_organization_social לנתוני דף חברה"
 
     except Exception as e:
         logger.warning(f"LinkedIn stats error: {e}")
