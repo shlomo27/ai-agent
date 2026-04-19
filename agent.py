@@ -22,6 +22,7 @@ from platforms.twitter import TwitterPlatform
 from platforms.linkedin import LinkedInPlatform
 from platforms.youtube import YoutubePlatform
 from platforms.tiktok import TikTokPlatform
+from platforms.reddit import RedditPlatform
 import tools.social_tools as social_tools
 import tools.analytics_tools as analytics_tools
 from tools.content_tools import (
@@ -890,6 +891,7 @@ class AdvertisingAgent:
             "linkedin": LinkedInPlatform(),
             "youtube": YoutubePlatform(),
             "tiktok": TikTokPlatform(),
+            "reddit": RedditPlatform(),
         }
 
         # Register platforms with tool modules
@@ -926,8 +928,12 @@ class AdvertisingAgent:
                 platform = TwitterPlatform(access_token=token)
             elif platform_name == "linkedin":
                 platform = LinkedInPlatform(access_token=token)
+            elif platform_name == "youtube":
+                platform = YoutubePlatform(access_token=token)
             elif platform_name == "tiktok":
                 platform = TikTokPlatform(access_token=token)
+            elif platform_name == "reddit":
+                platform = RedditPlatform(access_token=token)
             else:
                 continue
             self.platforms[platform_name] = platform

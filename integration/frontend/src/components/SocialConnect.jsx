@@ -18,7 +18,9 @@ const PLATFORMS = [
   { id: 'instagram', label: 'Instagram', icon: '📸', color: '#e1306c', comingSoon: true },
   { id: 'twitter',   label: 'Twitter/X', icon: '🐦', color: '#1da1f2' },
   { id: 'linkedin',  label: 'LinkedIn',  icon: '💼', color: '#0077b5' },
-  { id: 'tiktok',    label: 'TikTok',    icon: '🎵', color: '#010101' },
+  { id: 'tiktok',    label: 'TikTok',    icon: '🎵', color: '#010101', comingSoon: true },
+  { id: 'youtube',   label: 'YouTube',   icon: '▶️',  color: '#ff0000' },
+  { id: 'reddit',    label: 'Reddit',    icon: '🔴', color: '#ff4500' },
 ];
 
 const TEXT = {
@@ -31,7 +33,7 @@ const TEXT = {
     expired: 'פג תוקף',
     connecting: 'מחבר...',
     comingSoon: 'בקרוב',
-    comingSoonTooltip: 'Instagram יהיה זמין בקרוב — ממתין לאישור Meta',
+    comingSoonTooltip: 'פלטפורמה זו תהיה זמינה בקרוב',
     successMsg: (p) => `✅ ${p} חוברה בהצלחה!`,
     errorMsg: (e) => `❌ שגיאה: ${e}`,
     noPlatformsBanner: '⚠️ כדי שה-AI יוכל לפרסם בשמך — חבר לפחות פלטפורמה אחת. לחץ "חבר" ליד הפלטפורמה הרצויה, אשר גישה, וה-AI יתחיל לפרסם אוטומטית.',
@@ -53,7 +55,7 @@ const TEXT = {
     expired: 'Token expired',
     connecting: 'Connecting...',
     comingSoon: 'Coming soon',
-    comingSoonTooltip: 'Instagram coming soon — pending Meta approval',
+    comingSoonTooltip: 'This platform will be available soon',
     successMsg: (p) => `✅ ${p} connected successfully!`,
     errorMsg: (e) => `❌ Error: ${e}`,
     noPlatformsBanner: '⚠️ To let the AI post on your behalf — connect at least one platform. Click "Connect" next to the platform, approve access, and the AI will start posting automatically.',

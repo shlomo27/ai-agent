@@ -87,6 +87,22 @@ const PLATFORM_CONFIG = {
     redirectUri: process.env.TIKTOK_REDIRECT_URI,
     scope: 'user.info.basic',  // video.publish requires App Review — add after approval
   },
+  youtube: {
+    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    clientId: process.env.YOUTUBE_CLIENT_ID,
+    clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
+    redirectUri: process.env.YOUTUBE_REDIRECT_URI,
+    scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly openid email profile',
+  },
+  reddit: {
+    authUrl: 'https://www.reddit.com/api/v1/authorize',
+    tokenUrl: 'https://www.reddit.com/api/v1/access_token',
+    clientId: process.env.REDDIT_CLIENT_ID,
+    clientSecret: process.env.REDDIT_CLIENT_SECRET,
+    redirectUri: process.env.REDDIT_REDIRECT_URI,
+    scope: 'submit identity read',
+  },
 };
 
 // ─── Stateless signed state (works across multiple server instances) ──────────
@@ -167,6 +183,17 @@ router.get('/connect/:platform', requireAuth, (req, res) => {
     params.set('client_key', config.clientId);
   }
 
+  // YouTube needs offline access for refresh token
+  if (platform === 'youtube') {
+    params.set('access_type', 'offline');
+    params.set('prompt', 'consent');
+  }
+
+  // Reddit requires duration=permanent for refresh token
+  if (platform === 'reddit') {
+    params.set('duration', 'permanent');
+  }
+
   res.json({ url: `${config.authUrl}?${params.toString()}` });
 });
 
@@ -209,6 +236,17 @@ router.get('/callback/:platform', async (req, res) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ client_key: config.clientId, client_secret: config.clientSecret, code, grant_type: 'authorization_code', redirect_uri: config.redirectUri }),
+      });
+      tokenData = await r.json();
+    } else if (platform === 'reddit') {
+      // Reddit uses Basic auth with URL-encoded credentials
+      const encodedId = encodeURIComponent(config.clientId);
+      const encodedSecret = encodeURIComponent(config.clientSecret);
+      const creds = Buffer.from(`${encodedId}:${encodedSecret}`).toString('base64');
+      const r = await fetch(config.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}`, 'User-Agent': 'ilmariai-agent/1.0' },
+        body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: config.redirectUri }),
       });
       tokenData = await r.json();
     } else {
