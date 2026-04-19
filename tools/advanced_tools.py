@@ -251,15 +251,32 @@ def generate_weekly_report(
     week_start = (datetime.now() - timedelta(days=7)).strftime("%d/%m/%Y")
     week_end = datetime.now().strftime("%d/%m/%Y")
 
-    # ── Real data: count published posts from audit log this week ──────────────
+    # ── Real data: count published posts from audit log + scheduled jobs ─────────
     one_week_ago = datetime.now() - timedelta(days=7)
     logs = get_action_log(session_id, limit=200)
+
+    # Broad match — Claude uses various action_type strings
+    publish_keywords = ("post_published", "publish", "פרסם", "פרסום", "posted")
     real_posts = [
         l for l in logs
-        if l.get("action_type") == "post_published"
+        if any(kw in l.get("action_type", "").lower() or kw in l.get("description", "").lower()
+               for kw in publish_keywords)
         and datetime.fromisoformat(l["timestamp"]) >= one_week_ago
     ]
-    real_post_count = len(real_posts)
+
+    # Also count scheduled jobs marked as published this week
+    from tools.scheduler import PostScheduler
+    from datetime import timezone
+    all_jobs = PostScheduler._load_jobs()
+    published_jobs = [
+        j for j in all_jobs
+        if j.get("status") == "published"
+        and j.get("session_id") == session_id
+        and j.get("published_at")
+        and datetime.fromisoformat(j["published_at"].replace("+00:00", "")).replace(tzinfo=None) >= one_week_ago.replace(tzinfo=None)
+    ]
+
+    real_post_count = len(real_posts) + len(published_jobs)
     if real_post_count > 0:
         posts_this_week = real_post_count
 

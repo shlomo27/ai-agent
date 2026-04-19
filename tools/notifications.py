@@ -1,3 +1,4 @@
+import os
 """
 Notification system - stores in-app notifications per session.
 Frontend polls /api/notifications/{session_id} to show them.
@@ -12,7 +13,7 @@ from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-NOTIF_DIR = Path("/tmp/ai-agent-notifications")
+NOTIF_DIR = Path(os.getenv("DATA_DIR", "/tmp")) / "ai-agent-notifications"
 NOTIF_DIR.mkdir(parents=True, exist_ok=True)
 
 

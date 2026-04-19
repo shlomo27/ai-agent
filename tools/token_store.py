@@ -1,3 +1,4 @@
+import os
 """
 Persistent token store — saves OAuth tokens per session to disk
 so the background job runner can publish scheduled posts even
@@ -11,7 +12,7 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-TOKEN_DIR = Path("/tmp/ai-agent-session-tokens")
+TOKEN_DIR = Path(os.getenv("DATA_DIR", "/tmp")) / "ai-agent-session-tokens"
 TOKEN_DIR.mkdir(parents=True, exist_ok=True)
 
 

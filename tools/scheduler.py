@@ -1,3 +1,4 @@
+import os
 """
 Scheduled posting engine - posts content at optimal times automatically.
 Uses APScheduler for job management.
@@ -52,7 +53,7 @@ def _format_israel_time(dt: datetime) -> str:
 
 logger = logging.getLogger(__name__)
 
-JOBS_FILE = Path("/tmp/ai-agent-scheduled-jobs.json")
+JOBS_FILE = Path(os.getenv("DATA_DIR", "/tmp")) / "ai-agent-scheduled-jobs.json"
 
 # Optimal posting times per platform (Israel timezone)
 OPTIMAL_TIMES = {

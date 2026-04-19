@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
-LOG_DIR = os.environ.get("ACTION_LOG_DIR", "/tmp/ai-agent-action-logs")
+LOG_DIR = os.environ.get("ACTION_LOG_DIR", os.path.join(os.getenv("DATA_DIR", "/tmp"), "ai-agent-action-logs"))
 MAX_ENTRIES = 500
 
 

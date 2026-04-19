@@ -1,3 +1,4 @@
+import os
 """
 Conversation history manager - persists chat history per session to disk.
 Survives server restarts.
@@ -11,7 +12,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-HISTORY_DIR = Path("/tmp/ai-agent-history")
+HISTORY_DIR = Path(os.getenv("DATA_DIR", "/tmp")) / "ai-agent-history"
 HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 MAX_HISTORY_MESSAGES = 40  # keep last 40 messages to avoid token overflow
 

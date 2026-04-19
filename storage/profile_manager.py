@@ -14,7 +14,7 @@ from models.business_profile import BusinessProfile
 
 logger = logging.getLogger(__name__)
 
-PROFILES_DIR = Path(os.getenv("PROFILES_DIR", "/tmp/ai-agent-profiles"))
+PROFILES_DIR = Path(os.getenv("PROFILES_DIR", os.path.join(os.getenv("DATA_DIR", "/tmp"), "ai-agent-profiles")))
 PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
 

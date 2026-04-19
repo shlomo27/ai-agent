@@ -1,3 +1,4 @@
+import os
 """
 Feature gating per subscription plan.
 All paid features are enforced here — not just in the system prompt.
@@ -11,7 +12,7 @@ from typing import Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
-QUOTA_FILE = Path("/tmp/ai-agent-feature-quotas.json")
+QUOTA_FILE = Path(os.getenv("DATA_DIR", "/tmp")) / "ai-agent-feature-quotas.json"
 
 # What each plan is allowed to do
 PLAN_FEATURES: Dict[str, Dict] = {

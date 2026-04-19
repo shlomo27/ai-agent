@@ -1,3 +1,4 @@
+import os
 """
 Rate limiter - prevents excessive Claude API usage per session.
 Limits are based on the user's marketing plan.
@@ -27,7 +28,7 @@ def _format_reset_time(reset_at: datetime, now: datetime, language: str) -> str:
 
 logger = logging.getLogger(__name__)
 
-LIMITS_FILE = Path("/tmp/ai-agent-rate-limits.json")
+LIMITS_FILE = Path(os.getenv("DATA_DIR", "/tmp")) / "ai-agent-rate-limits.json"
 
 # Limits per plan (hourly, daily)
 PLAN_LIMITS: Dict[str, Dict[str, int]] = {
