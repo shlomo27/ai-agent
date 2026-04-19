@@ -106,6 +106,27 @@ router.post('/chat', async (req, res) => {
   proxyToAgent('/api/chat', 'POST', body, res);
 });
 
+// ─── Media upload (proxy multipart stream directly to AI Agent) ──────────────
+router.post('/upload', async (req, res) => {
+  try {
+    const sessionId = req.advertising?.userId || 'anonymous';
+    const response = await fetch(`${AI_AGENT_URL}/api/upload`, {
+      method: 'POST',
+      headers: {
+        'content-type': req.headers['content-type'],
+        'X-Session-Id': sessionId,
+      },
+      body: req,
+      duplex: 'half',
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('Upload proxy error:', error.message);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
 // ─── Platforms ────────────────────────────────────────────────────────────────
 router.get('/platforms', (req, res) =>
   proxyToAgent('/api/platforms', 'GET', null, res)
