@@ -233,6 +233,51 @@ def monitor_competitors(
     }
 
 
+def _fetch_platform_analytics(platform_name: str, platform) -> Dict[str, Any]:
+    """Fetch real follower/subscriber counts from a connected platform (sync httpx)."""
+    try:
+        import httpx
+        token = getattr(platform, "access_token", "")
+        if not token:
+            return {}
+
+        if platform_name == "youtube" and getattr(platform, "_oauth_mode", False):
+            resp = httpx.get(
+                "https://www.googleapis.com/youtube/v3/channels",
+                params={"part": "statistics", "mine": "true"},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+                follow_redirects=True,
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("items", [])
+                if items:
+                    stats = items[0].get("statistics", {})
+                    return {
+                        "subscribers": stats.get("subscriberCount"),
+                        "total_views": stats.get("viewCount"),
+                        "videos": stats.get("videoCount"),
+                    }
+
+        elif platform_name == "facebook":
+            page_id = getattr(platform, "page_id", None)
+            if page_id:
+                resp = httpx.get(
+                    f"https://graph.facebook.com/{page_id}",
+                    params={"fields": "fan_count,followers_count", "access_token": token},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    fans = data.get("followers_count") or data.get("fan_count")
+                    if fans is not None:
+                        return {"followers": fans}
+
+    except Exception as e:
+        logger.warning(f"Analytics fetch failed for {platform_name}: {e}")
+    return {}
+
+
 def generate_weekly_report(
     session_id: str,
     business_name: str = "",
@@ -250,50 +295,73 @@ def generate_weekly_report(
     platforms_active = platforms_active or []
     week_start = (datetime.now() - timedelta(days=7)).strftime("%d/%m/%Y")
     week_end = datetime.now().strftime("%d/%m/%Y")
-
-    # ── Real data: count published posts from audit log + scheduled jobs ─────────
     one_week_ago = datetime.now() - timedelta(days=7)
-    logs = get_action_log(session_id, limit=200)
 
-    # Broad match — Claude uses various action_type strings
-    publish_keywords = ("post_published", "publish", "פרסם", "פרסום", "posted")
-    real_posts = [
-        l for l in logs
-        if any(kw in l.get("action_type", "").lower() or kw in l.get("description", "").lower()
-               for kw in publish_keywords)
-        and datetime.fromisoformat(l["timestamp"]) >= one_week_ago
-    ]
-
-    # Also count scheduled jobs marked as published this week
+    # ── Per-platform post counts from scheduled jobs (most reliable source) ──────
     from tools.scheduler import PostScheduler
-    from datetime import timezone
     all_jobs = PostScheduler._load_jobs()
-    published_jobs = [
-        j for j in all_jobs
-        if j.get("status") == "published"
-        and j.get("session_id") == session_id
-        and j.get("published_at")
-        and datetime.fromisoformat(j["published_at"].replace("+00:00", "")).replace(tzinfo=None) >= one_week_ago.replace(tzinfo=None)
-    ]
+    per_platform_counts: Dict[str, int] = {}
 
-    real_post_count = len(real_posts) + len(published_jobs)
-    if real_post_count > 0:
-        posts_this_week = real_post_count
+    for j in all_jobs:
+        if j.get("session_id") != session_id:
+            continue
+        # Count any job that was published (status=published) or attempted (status=pending/failed)
+        # within the last 7 days — we count by creation date so we capture manual posts too
+        created_raw = j.get("created_at") or j.get("scheduled_for", "")
+        try:
+            created = datetime.fromisoformat(created_raw.replace("+00:00", "")).replace(tzinfo=None)
+        except Exception:
+            continue
+        if created < one_week_ago:
+            continue
+        for p in j.get("platforms", []):
+            per_platform_counts[p] = per_platform_counts.get(p, 0) + 1
 
-    # ── Real data: only actually-connected (non-demo) platforms ───────────────
-    connected = [
-        name for name, p in social_tools._platform_registry.items()
+    # Also count from audit log (Claude logs each publish with log_action)
+    logs = get_action_log(session_id, limit=200)
+    publish_keywords = ("post_published", "publish", "פרסם", "פרסום", "posted")
+    for entry in logs:
+        try:
+            ts = datetime.fromisoformat(entry["timestamp"])
+        except Exception:
+            continue
+        if ts < one_week_ago:
+            continue
+        text = (entry.get("action_type", "") + " " + entry.get("description", "")).lower()
+        if not any(kw in text for kw in publish_keywords):
+            continue
+        # Try to extract platform from details
+        details = entry.get("details", {})
+        platforms_in_log = details.get("platforms") or (
+            [details["platform"]] if details.get("platform") else []
+        )
+        for p in platforms_in_log:
+            per_platform_counts[p] = per_platform_counts.get(p, 0) + 1
+
+    # ── Connected (non-demo) platforms ────────────────────────────────────────
+    connected_platforms = {
+        name: p for name, p in social_tools._platform_registry.items()
         if not getattr(p, "demo_mode", True)
-    ]
-    if connected:
-        platforms_active = connected
+    }
+    if connected_platforms:
+        platforms_active = list(connected_platforms.keys())
 
-    # ── Do NOT use invented reach/follower numbers ─────────────────────────────
-    total_reach_estimate = 0   # real data not available from API without extra calls
-    new_followers_estimate = 0
+    # Merge: any platform that had a post this week is "active" even if not in registry now
+    for p in per_platform_counts:
+        if p not in platforms_active:
+            platforms_active.append(p)
+
+    total_posts = sum(per_platform_counts.values()) or posts_this_week
+
+    # ── Fetch real analytics from connected platforms ─────────────────────────
+    platform_analytics: Dict[str, Dict] = {}
+    for name, plat in connected_platforms.items():
+        stats = _fetch_platform_analytics(name, plat)
+        if stats:
+            platform_analytics[name] = stats
 
     performance_score = min(100, (
-        (posts_this_week * 10) +
+        (total_posts * 10) +
         (len(platforms_active) * 15) +
         (20 if top_performing_content else 0)
     ))
@@ -304,7 +372,7 @@ def generate_weekly_report(
     insights_raw = _claude(
         f"הפק 4 תובנות שיווקיות קונקרטיות ומעשיות לעסק '{business_name}' "
         f"בהתבסס על הנתונים הבאים:\n"
-        f"- פוסטים שפורסמו השבוע: {posts_this_week}\n"
+        f"- פוסטים שפורסמו השבוע: {total_posts}\n"
         f"- פלטפורמות פעילות: {platforms_str}\n"
         f"- ציון ביצועים: {performance_score}/100\n"
         f"- {top_str}"
@@ -312,37 +380,50 @@ def generate_weekly_report(
         max_tokens=400,
     )
     insights = [line.strip() for line in insights_raw.split("\n") if line.strip()][:4] or [
-        f"פורסמו {posts_this_week} פוסטים על {len(platforms_active)} פלטפורמות"]
+        f"פורסמו {total_posts} פוסטים על {len(platforms_active)} פלטפורמות"]
 
     next_week_raw = _claude(
         f"תכנן את השבוע הבא לעסק '{business_name}' ב-{platforms_str}. "
-        f"השבוע פורסמו {posts_this_week} פוסטים (ציון {performance_score}/100). "
+        f"השבוע פורסמו {total_posts} פוסטים (ציון {performance_score}/100). "
         f"תן תוכנית תמציתית: כמה פוסטים, באיזה ימים, ואיזה נושאים. "
         f"כתוב ב-3-4 משפטים קצרים בעברית.",
         max_tokens=300,
     )
 
+    # Build per-platform breakdown with real post counts + analytics
+    platform_breakdown = {}
+    for p in platforms_active:
+        entry: Dict[str, Any] = {"posts": per_platform_counts.get(p, 0)}
+        if p in platform_analytics:
+            entry.update(platform_analytics[p])
+        platform_breakdown[p] = entry
+
+    # Build analytics summary for report
+    analytics_lines = []
+    for p, stats in platform_analytics.items():
+        if "subscribers" in stats:
+            analytics_lines.append(f"YouTube — {stats['subscribers']:,} מנויים, {stats.get('total_views','N/A')} צפיות כולל")
+        if "followers" in stats:
+            analytics_lines.append(f"Facebook — {stats['followers']:,} עוקבים")
+    analytics_summary = "\n".join(analytics_lines) if analytics_lines else None
+
     return {
         "report_title": f"דוח שבועי - {business_name}",
         "period": f"{week_start} - {week_end}",
         "generated_at": datetime.now().isoformat(),
+        "already_publishing": True,
         "executive_summary": {
             "performance_score": performance_score,
             "grade": "A" if performance_score >= 80 else "B" if performance_score >= 60 else "C",
-            "posts_published": posts_this_week,
+            "posts_published": total_posts,
             "platforms_active": len(platforms_active),
-            "estimated_reach": "נתון אמיתי לא זמין — מחובר לפלטפורמה ישירות לנתונים מדויקים",
-            "new_followers": "נתון אמיתי לא זמין",
+            "analytics": analytics_summary or "נתונים ישירים לא זמינים — ניתן לראות ב-Facebook Insights / YouTube Studio",
         },
-        "platform_breakdown": {
-            p: {"posts": max(1, posts_this_week // len(platforms_active)) if platforms_active else 0}
-            for p in platforms_active
-        },
+        "platform_breakdown": platform_breakdown,
         "top_performing": top_performing_content or "לא סופקו נתונים",
         "insights": insights,
         "next_week_plan": next_week_raw,
-        "website_traffic_tip": f"הוסף UTM parameters לכל הקישורים ל-{website_url} כדי לעקוב אחרי תנועה מרשתות חברתיות",
-        "data_note": "נתוני חשיפה ועוקבים מדויקים מגיעים מ-Facebook Insights / LinkedIn Analytics ישירות — חבר את הפלטפורמות לדוח מלא.",
+        "website_traffic_tip": f"הוסף UTM parameters לקישורים ל-{website_url} כדי לעקוב אחרי תנועה מרשתות חברתיות",
     }
 
 
