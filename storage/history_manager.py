@@ -1,9 +1,9 @@
-import os
 """
 Conversation history manager - persists chat history per session to disk.
 Survives server restarts.
 """
 from __future__ import annotations
+import os
 import json
 import logging
 from pathlib import Path

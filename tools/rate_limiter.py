@@ -1,9 +1,9 @@
-import os
 """
 Rate limiter - prevents excessive Claude API usage per session.
 Limits are based on the user's marketing plan.
 """
 from __future__ import annotations
+import os
 import json
 import logging
 from datetime import datetime, timedelta

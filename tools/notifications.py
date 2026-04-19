@@ -1,9 +1,9 @@
-import os
 """
 Notification system - stores in-app notifications per session.
 Frontend polls /api/notifications/{session_id} to show them.
 """
 from __future__ import annotations
+import os
 import json
 import uuid
 import logging

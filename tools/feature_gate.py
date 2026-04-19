@@ -1,9 +1,9 @@
-import os
 """
 Feature gating per subscription plan.
 All paid features are enforced here — not just in the system prompt.
 """
 from __future__ import annotations
+import os
 import json
 import logging
 from datetime import datetime
