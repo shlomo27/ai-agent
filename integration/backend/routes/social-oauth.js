@@ -161,6 +161,12 @@ router.get('/connect/:platform', requireAuth, (req, res) => {
     params.set('code_challenge', codeVerifier);
   }
 
+  // TikTok uses client_key instead of client_id in the auth URL
+  if (platform === 'tiktok') {
+    params.delete('client_id');
+    params.set('client_key', config.clientId);
+  }
+
   res.json({ url: `${config.authUrl}?${params.toString()}` });
 });
 
