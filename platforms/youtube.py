@@ -92,6 +92,12 @@ class YoutubePlatform(BasePlatform):
     async def _upload_video_from_url(self, video_url: str, title: str, description: str) -> SocialPost:
         """Download video from URL and upload to YouTube via resumable upload API."""
         import httpx as _httpx
+        from config import config as _cfg
+
+        # Fix relative URLs (e.g. /uploads/...) by prepending the known agent base URL
+        if video_url.startswith("/"):
+            agent_base = getattr(_cfg, "PUBLIC_API_URL", "") or "https://ai-agent-production-bf7b.up.railway.app"
+            video_url = agent_base.rstrip("/") + video_url
 
         # Step 1: download the video file
         async with _httpx.AsyncClient(timeout=120) as client:

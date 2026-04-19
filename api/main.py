@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -83,6 +83,7 @@ async def root():
 
 @app.post("/api/upload")
 async def upload_media(
+    request: Request,
     file: UploadFile = File(...),
     session_id: Optional[str] = Header(None, alias="X-Session-Id"),
 ):
@@ -103,6 +104,9 @@ async def upload_media(
     dest.write_bytes(data)
 
     base_url = os.getenv("PUBLIC_API_URL", "").rstrip("/")
+    if not base_url:
+        # Fallback: derive from incoming request (works on Railway)
+        base_url = str(request.base_url).rstrip("/")
     return {"url": f"{base_url}/uploads/{filename}", "filename": filename}
 
 
