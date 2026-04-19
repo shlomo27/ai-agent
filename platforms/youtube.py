@@ -83,10 +83,72 @@ class YoutubePlatform(BasePlatform):
                 post_url="https://youtube.com/watch?v=demo",
                 posted_at=datetime.now(),
             )
-        # YouTube requires actual video file upload (multipart) - complex process
-        # This is a simplified version
-        logger.info("YouTube video upload requires OAuth 2.0 and multipart upload - see docs")
+        if media_urls:
+            title = kwargs.get("title") or (text[:100] if len(text) > 100 else text)
+            return await self._upload_video_from_url(media_urls[0], title, text)
+        logger.info("YouTube: no media URL provided, skipping post")
         return SocialPost(platform="youtube", content=text, posted_at=datetime.now())
+
+    async def _upload_video_from_url(self, video_url: str, title: str, description: str) -> SocialPost:
+        """Download video from URL and upload to YouTube via resumable upload API."""
+        import httpx as _httpx
+
+        # Step 1: download the video file
+        async with _httpx.AsyncClient(timeout=120) as client:
+            dl = await client.get(video_url)
+            if dl.status_code != 200:
+                raise Exception(f"Failed to download video ({dl.status_code}): {video_url}")
+            video_data = dl.content
+            content_type = dl.headers.get("content-type", "video/mp4").split(";")[0]
+
+        # Step 2: initialise YouTube resumable upload session
+        metadata = {
+            "snippet": {
+                "title": title,
+                "description": description,
+                "categoryId": "22",
+            },
+            "status": {"privacyStatus": "public"},
+        }
+        init_url = "https://www.googleapis.com/upload/youtube/v3/videos"
+        init_headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": content_type,
+            "X-Upload-Content-Length": str(len(video_data)),
+        }
+        async with _httpx.AsyncClient(timeout=30) as client:
+            init_resp = await client.post(
+                init_url,
+                params={"uploadType": "resumable", "part": "snippet,status"},
+                headers=init_headers,
+                json=metadata,
+            )
+            if init_resp.status_code != 200:
+                raise Exception(f"YouTube init upload failed ({init_resp.status_code}): {init_resp.text}")
+            upload_url = init_resp.headers.get("Location")
+            if not upload_url:
+                raise Exception("YouTube did not return an upload URL")
+
+            # Step 3: upload the video bytes
+            up_resp = await client.put(
+                upload_url,
+                content=video_data,
+                headers={"Content-Type": content_type, "Content-Length": str(len(video_data))},
+                timeout=300,
+            )
+            if up_resp.status_code not in (200, 201):
+                raise Exception(f"YouTube upload failed ({up_resp.status_code}): {up_resp.text}")
+            video_id = up_resp.json().get("id", "")
+
+        logger.info(f"YouTube video uploaded: {video_id}")
+        return SocialPost(
+            platform="youtube",
+            platform_post_id=video_id,
+            content=description,
+            post_url=f"https://youtube.com/watch?v={video_id}",
+            posted_at=datetime.now(),
+        )
 
     async def upload_video(
         self,
@@ -94,9 +156,9 @@ class YoutubePlatform(BasePlatform):
         title: str,
         description: str,
         tags: List[str] = None,
-        category_id: str = "22",  # People & Blogs
+        category_id: str = "22",
     ) -> SocialPost:
-        """Upload a video to YouTube."""
+        """Upload a video to YouTube from a local file path."""
         if self.demo_mode:
             logger.info(f"[DEMO] Uploaded video '{title}' to YouTube")
             return SocialPost(
@@ -107,9 +169,50 @@ class YoutubePlatform(BasePlatform):
                 views_count=0,
                 posted_at=datetime.now(),
             )
-        # Real implementation requires resumable upload API
-        logger.info("Real YouTube upload: use google-api-python-client for full implementation")
-        return SocialPost(platform="youtube", content=description, posted_at=datetime.now())
+        from pathlib import Path as _Path
+        video_data = _Path(video_path).read_bytes()
+        ext = _Path(video_path).suffix.lower()
+        content_type = "video/mp4" if ext in (".mp4", ".m4v") else "video/quicktime" if ext == ".mov" else "video/webm"
+        import httpx as _httpx
+
+        metadata = {
+            "snippet": {"title": title, "description": description, "categoryId": category_id},
+            "status": {"privacyStatus": "public"},
+        }
+        init_url = "https://www.googleapis.com/upload/youtube/v3/videos"
+        init_headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": content_type,
+            "X-Upload-Content-Length": str(len(video_data)),
+        }
+        async with _httpx.AsyncClient(timeout=30) as client:
+            init_resp = await client.post(
+                init_url,
+                params={"uploadType": "resumable", "part": "snippet,status"},
+                headers=init_headers,
+                json=metadata,
+            )
+            if init_resp.status_code != 200:
+                raise Exception(f"YouTube init upload failed: {init_resp.text}")
+            upload_url = init_resp.headers.get("Location")
+            up_resp = await client.put(
+                upload_url,
+                content=video_data,
+                headers={"Content-Type": content_type, "Content-Length": str(len(video_data))},
+                timeout=300,
+            )
+            if up_resp.status_code not in (200, 201):
+                raise Exception(f"YouTube upload failed: {up_resp.text}")
+            video_id = up_resp.json().get("id", "")
+
+        return SocialPost(
+            platform="youtube",
+            platform_post_id=video_id,
+            content=description,
+            post_url=f"https://youtube.com/watch?v={video_id}",
+            posted_at=datetime.now(),
+        )
 
     async def find_relevant_users(
         self,
