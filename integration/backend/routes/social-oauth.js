@@ -85,7 +85,7 @@ const PLATFORM_CONFIG = {
     clientId: process.env.TIKTOK_CLIENT_KEY,
     clientSecret: process.env.TIKTOK_CLIENT_SECRET,
     redirectUri: process.env.TIKTOK_REDIRECT_URI,
-    scope: 'user.info.basic,video.publish',
+    scope: 'user.info.basic',  // video.publish requires App Review — add after approval
   },
 };
 
