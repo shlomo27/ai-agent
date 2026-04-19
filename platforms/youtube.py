@@ -100,7 +100,7 @@ class YoutubePlatform(BasePlatform):
             video_url = agent_base.rstrip("/") + video_url
 
         # Step 1: download the video file
-        async with _httpx.AsyncClient(timeout=120) as client:
+        async with _httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
             dl = await client.get(video_url)
             if dl.status_code != 200:
                 raise Exception(f"Failed to download video ({dl.status_code}): {video_url}")
