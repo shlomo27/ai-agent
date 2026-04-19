@@ -277,37 +277,36 @@ def _fetch_twitter_stats(token: str) -> Dict[str, Any]:
 
 
 def _fetch_linkedin_stats(token: str) -> Dict[str, Any]:
-    """Fetch LinkedIn profile/company-page stats."""
+    """Fetch LinkedIn profile stats. Company-page analytics require Marketing API partnership."""
     import httpx
     result: Dict[str, Any] = {}
     headers = {"Authorization": f"Bearer {token}", "X-Restli-Protocol-Version": "2.0.0"}
     try:
-        # 1. Personal profile (always available)
+        # Personal profile — works with openid+profile scope
         profile_r = httpx.get(
-            "https://api.linkedin.com/v2/me",
-            params={"projection": "(id,localizedFirstName,localizedLastName)"},
-            headers=headers,
+            "https://api.linkedin.com/v2/userinfo",
+            headers={"Authorization": f"Bearer {token}"},
             timeout=8,
         )
         if profile_r.status_code == 200:
             p = profile_r.json()
-            name = f"{p.get('localizedFirstName','')} {p.get('localizedLastName','')}".strip()
+            name = p.get("name") or f"{p.get('given_name','')} {p.get('family_name','')}".strip()
             result["profile_name"] = name
-            result["linkedin_id"] = p.get("id", "")
+        else:
+            # Fallback to v2/me
+            me_r = httpx.get(
+                "https://api.linkedin.com/v2/me",
+                params={"projection": "(id,localizedFirstName,localizedLastName)"},
+                headers=headers,
+                timeout=8,
+            )
+            if me_r.status_code == 200:
+                p = me_r.json()
+                name = f"{p.get('localizedFirstName','')} {p.get('localizedLastName','')}".strip()
+                result["profile_name"] = name
 
-        # 2. Connection count (personal network size)
-        conn_r = httpx.get(
-            "https://api.linkedin.com/v2/connections",
-            params={"q": "viewer", "projection": "(paging)"},
-            headers=headers,
-            timeout=8,
-        )
-        if conn_r.status_code == 200:
-            total = conn_r.json().get("paging", {}).get("total", None)
-            if total is not None:
-                result["connections"] = total
-
-        # 3. Company pages where user is admin (optional — only works with r_organization_social scope)
+        # Company page analytics require r_organization_social (LinkedIn Marketing API partner only)
+        # Try it — return gracefully if 403
         orgs_r = httpx.get(
             "https://api.linkedin.com/v2/organizationAcls",
             params={"q": "roleAssignee", "role": "ADMINISTRATOR",
@@ -331,8 +330,7 @@ def _fetch_linkedin_stats(token: str) -> Dict[str, Any]:
                     )
                     if size_r.status_code == 200:
                         result["page_followers"] = size_r.json().get("firstDegreeSize", 0)
-        elif orgs_r.status_code == 403:
-            result["company_page_note"] = "נדרשת הרשאת r_organization_social לנתוני דף חברה"
+        # 403 = no company page or no Marketing API access — just skip, don't report error
 
     except Exception as e:
         logger.warning(f"LinkedIn stats error: {e}")
