@@ -312,8 +312,18 @@ router.get('/status', requireAuth, async (req, res) => {
     const user = await User.findById(req.user.id).select('socialTokens');
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const connected = {};
+    // Attempt silent refresh for any expired tokens that have a refresh token
     for (const token of user.socialTokens) {
+      if (token.expiresAt && token.expiresAt < new Date() && token.refreshToken) {
+        await refreshTokenIfNeeded(user, token.platform).catch(() => {});
+      }
+    }
+    // Re-fetch after potential refresh
+    await user.populate && user.populate('socialTokens');
+    const freshUser = await User.findById(req.user.id).select('socialTokens');
+
+    const connected = {};
+    for (const token of (freshUser?.socialTokens || [])) {
       connected[token.platform] = {
         connected: true,
         pageName: token.pageName || null,
@@ -340,4 +350,69 @@ router.delete('/disconnect/:platform', requireAuth, async (req, res) => {
   }
 });
 
+// ─── Token refresh helper (called by advertising.js before each agent request) ─
+async function refreshTokenIfNeeded(user, platformName) {
+  const entry = user.socialTokens.find(t => t.platform === platformName);
+  if (!entry?.accessToken) return null;
+
+  // Refresh if within 5 minutes of expiry or already expired
+  const needsRefresh = entry.expiresAt && entry.expiresAt < new Date(Date.now() + 5 * 60 * 1000);
+  if (!needsRefresh) return entry.accessToken;
+
+  if (!entry.refreshToken) {
+    console.log(`[token-refresh] No refresh token for ${platformName}`);
+    return entry.accessToken;
+  }
+
+  const cfg = PLATFORM_CONFIG[platformName];
+  if (!cfg) return entry.accessToken;
+
+  try {
+    let newData;
+    if (platformName === 'twitter') {
+      const creds = Buffer.from(`${encodeURIComponent(cfg.clientId)}:${encodeURIComponent(cfg.clientSecret)}`).toString('base64');
+      const r = await fetch(cfg.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}` },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: entry.refreshToken, client_id: cfg.clientId }),
+      });
+      newData = await r.json();
+    } else if (platformName === 'reddit') {
+      const creds = Buffer.from(`${encodeURIComponent(cfg.clientId)}:${encodeURIComponent(cfg.clientSecret)}`).toString('base64');
+      const r = await fetch(cfg.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}`, 'User-Agent': 'ilmariai-agent/1.0' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: entry.refreshToken }),
+      });
+      newData = await r.json();
+    } else {
+      // YouTube, LinkedIn, Facebook — standard OAuth2 refresh
+      const r = await fetch(cfg.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: entry.refreshToken, client_id: cfg.clientId, client_secret: cfg.clientSecret }),
+      });
+      newData = await r.json();
+    }
+
+    if (newData?.access_token) {
+      const expiresAt = newData.expires_in ? new Date(Date.now() + newData.expires_in * 1000) : null;
+      await user.setSocialToken(platformName, {
+        accessToken: newData.access_token,
+        refreshToken: newData.refresh_token || entry.refreshToken,
+        pageId: entry.pageId,
+        pageName: entry.pageName,
+        expiresAt,
+      });
+      console.log(`✅ [token-refresh] Refreshed ${platformName} for user ${user._id}`);
+      return newData.access_token;
+    }
+    console.warn(`[token-refresh] No access_token in response for ${platformName}:`, JSON.stringify(newData).slice(0, 120));
+  } catch (e) {
+    console.error(`[token-refresh] Error refreshing ${platformName}:`, e.message);
+  }
+  return entry.accessToken;
+}
+
+router.refreshTokenIfNeeded = refreshTokenIfNeeded;
 module.exports = router;

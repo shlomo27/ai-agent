@@ -14,6 +14,8 @@ const User = require('../models/User');
 
 // Use auth middleware from routes/auth (has JWT_SECRET fallback — matches token signing)
 const { authMiddleware: requireAuth } = require('./auth');
+const socialOAuthRouter = require('./social-oauth');
+const refreshTokenIfNeeded = socialOAuthRouter.refreshTokenIfNeeded;
 
 const AI_AGENT_URL = process.env.AI_AGENT_URL || 'https://ai-agent-production-bf7b.up.railway.app';
 
@@ -84,7 +86,8 @@ router.post('/chat', async (req, res) => {
     const user = await User.findById(req.advertising.userId).select('socialTokens');
     for (const t of (user?.socialTokens || [])) {
       if (t.accessToken) {
-        socialTokens[t.platform] = t.accessToken;
+        const freshToken = await refreshTokenIfNeeded(user, t.platform);
+        socialTokens[t.platform] = freshToken || t.accessToken;
         if (t.pageId) socialPageIds[t.platform] = t.pageId;
       }
     }
