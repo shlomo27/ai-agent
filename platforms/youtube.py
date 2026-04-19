@@ -20,19 +20,26 @@ class YoutubePlatform(BasePlatform):
     platform_name = "youtube"
     BASE_URL = "https://www.googleapis.com/youtube/v3"
 
-    def __init__(self):
+    def __init__(self, access_token: str = ""):
+        token = access_token or getattr(config, 'YOUTUBE_API_KEY', '')
         super().__init__(
-            access_token=config.YOUTUBE_API_KEY,
-            demo_mode=config.DEMO_MODE,
+            access_token=token,
+            demo_mode=False if access_token else config.DEMO_MODE,
         )
+        self._oauth_mode = bool(access_token)  # True when user connected via OAuth
         self._channel_id: str = ""
 
     def _get_default_headers(self) -> Dict[str, str]:
-        return {
-            "Content-Type": "application/json",
-        }
+        if self._oauth_mode:
+            return {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json",
+            }
+        return {"Content-Type": "application/json"}
 
     def _auth_params(self) -> Dict[str, str]:
+        if self._oauth_mode:
+            return {}  # OAuth uses Bearer header, not API key param
         return {"key": self.access_token}
 
     async def connect(self) -> PlatformAccount:
