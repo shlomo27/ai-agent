@@ -243,10 +243,37 @@ def generate_weekly_report(
     total_reach_estimate: int = 0,
     new_followers_estimate: int = 0,
 ) -> Dict[str, Any]:
-    """Generate a comprehensive weekly marketing report."""
+    """Generate a comprehensive weekly marketing report using real audit-log data."""
+    from tools.action_log import get_action_log
+    import tools.social_tools as social_tools
+
     platforms_active = platforms_active or []
     week_start = (datetime.now() - timedelta(days=7)).strftime("%d/%m/%Y")
     week_end = datetime.now().strftime("%d/%m/%Y")
+
+    # ── Real data: count published posts from audit log this week ──────────────
+    one_week_ago = datetime.now() - timedelta(days=7)
+    logs = get_action_log(session_id, limit=200)
+    real_posts = [
+        l for l in logs
+        if l.get("action_type") == "post_published"
+        and datetime.fromisoformat(l["timestamp"]) >= one_week_ago
+    ]
+    real_post_count = len(real_posts)
+    if real_post_count > 0:
+        posts_this_week = real_post_count
+
+    # ── Real data: only actually-connected (non-demo) platforms ───────────────
+    connected = [
+        name for name, p in social_tools._platform_registry.items()
+        if not getattr(p, "demo_mode", True)
+    ]
+    if connected:
+        platforms_active = connected
+
+    # ── Do NOT use invented reach/follower numbers ─────────────────────────────
+    total_reach_estimate = 0   # real data not available from API without extra calls
+    new_followers_estimate = 0
 
     performance_score = min(100, (
         (posts_this_week * 10) +
@@ -287,19 +314,18 @@ def generate_weekly_report(
             "grade": "A" if performance_score >= 80 else "B" if performance_score >= 60 else "C",
             "posts_published": posts_this_week,
             "platforms_active": len(platforms_active),
-            "estimated_reach": total_reach_estimate or posts_this_week * 200,
-            "new_followers": new_followers_estimate,
+            "estimated_reach": "נתון אמיתי לא זמין — מחובר לפלטפורמה ישירות לנתונים מדויקים",
+            "new_followers": "נתון אמיתי לא זמין",
         },
         "platform_breakdown": {
-            p: {
-                "posts": max(1, posts_this_week // len(platforms_active)) if platforms_active else 0,
-            }
+            p: {"posts": max(1, posts_this_week // len(platforms_active)) if platforms_active else 0}
             for p in platforms_active
         },
         "top_performing": top_performing_content or "לא סופקו נתונים",
         "insights": insights,
         "next_week_plan": next_week_raw,
         "website_traffic_tip": f"הוסף UTM parameters לכל הקישורים ל-{website_url} כדי לעקוב אחרי תנועה מרשתות חברתיות",
+        "data_note": "נתוני חשיפה ועוקבים מדויקים מגיעים מ-Facebook Insights / LinkedIn Analytics ישירות — חבר את הפלטפורמות לדוח מלא.",
     }
 
 

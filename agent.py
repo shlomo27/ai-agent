@@ -701,15 +701,15 @@ TOOLS = [
     },
     {
         "name": "generate_weekly_report",
-        "description": "צור דוח שבועי מקיף של ביצועי הפרסום. Generate comprehensive weekly marketing report.",
+        "description": "צור דוח שבועי מקיף של ביצועי הפרסום. הכלי טוען אוטומטית נתונים אמיתיים (פוסטים שפורסמו, פלטפורמות מחוברות). אל תמציא מספרי עוקבים או חשיפות — הכלי מחזיר רק נתונים אמיתיים.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "posts_this_week": {"type": "integer", "default": 0},
-                "platforms_active": {"type": "array", "items": {"type": "string"}},
-                "top_performing_content": {"type": "string"},
-                "total_reach_estimate": {"type": "integer"},
-                "new_followers_estimate": {"type": "integer"},
+                "posts_this_week": {"type": "integer", "default": 0, "description": "השאר 0 — הכלי טוען מה-audit log"},
+                "platforms_active": {"type": "array", "items": {"type": "string"}, "description": "השאר ריק [] — הכלי טוען פלטפורמות מחוברות אמיתיות"},
+                "top_performing_content": {"type": "string", "description": "תוכן הפוסט המוביל אם ידוע"},
+                "total_reach_estimate": {"type": "integer", "description": "השאר 0 — אין נתון אמיתי"},
+                "new_followers_estimate": {"type": "integer", "description": "השאר 0 — אין נתון אמיתי"},
             },
         },
     },
