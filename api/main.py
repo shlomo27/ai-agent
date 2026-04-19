@@ -480,6 +480,34 @@ async def generate_weekly_email_data(session_id: str, plan: str = "free"):
     }
 
 
+@app.get("/api/debug/jobs")
+async def debug_jobs():
+    """Debug endpoint — shows all scheduled jobs with status and errors."""
+    from tools.scheduler import PostScheduler
+    from tools.job_runner import run_scheduled_posts
+    import tools.social_tools as social_tools
+    jobs = PostScheduler._load_jobs()
+    registry = list(social_tools._platform_registry.keys())
+    registry_modes = {
+        k: getattr(v, "demo_mode", "?")
+        for k, v in social_tools._platform_registry.items()
+    }
+    return {
+        "total_jobs": len(jobs),
+        "jobs": jobs[-10:],  # last 10 jobs
+        "registry_platforms": registry,
+        "registry_demo_modes": registry_modes,
+    }
+
+
+@app.post("/api/debug/run-jobs")
+async def debug_run_jobs():
+    """Manually trigger job runner — for testing only."""
+    from tools.job_runner import run_scheduled_posts
+    await run_scheduled_posts()
+    return {"message": "Job runner executed"}
+
+
 @app.on_event("startup")
 async def startup_event():
     """Start background job runner on server start."""
