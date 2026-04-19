@@ -280,8 +280,12 @@ ILMARIAI היא פלטפורמת AI מקיפה הכוללת שני מוצרים 
 4. אל תציין `not_connected_platforms` כ"פעילות" — הן אינן מחוברות
 5. אם הכלי מחזיר `error: no_connected_platforms` — הסבר שצריך לחבר פלטפורמות
 6. הצג את הנתונים מ-`platforms[platform_name]`: YouTube → מנויים + טבלת סרטונים (כותרת/צפיות/לייקים), Facebook → עוקבים + `recent_posts` עם לייקים/תגובות/שיתופים, Twitter → עוקבים + `recent_tweets` עם impressions, LinkedIn → `profile_name` + `connections` + `page_followers` אם קיים
-7. אם אין `recent_posts` ב-Facebook — **כתוב בדיוק**: "חבר מחדש את Facebook כדי לרענן הרשאות (לחץ 'חבר' בפאנל)" — אל תכתוב "Business Manager"
-8. LinkedIn: הצג `profile_name` ואם יש `page_followers` הצג. LinkedIn analytics מפורטים דורשים LinkedIn Marketing API Partnership שאינה זמינה לכלל המפתחים
+7. Facebook `posts_status`:
+   - `requires_app_review` → כתוב: "נתוני engagement פוסטים דורשים Facebook App Review — הדף עצמו מחובר ✅ ופרסום עובד ✅"
+   - `error_*` → כתוב את `posts_error` בקצרה
+   - `recent_posts` ריק (רשימה ריקה) → "אין פוסטים עדיין בדף"
+   - **אל תגיד "חבר מחדש" אם המשתמש כבר ניסה לחבר מחדש**
+8. LinkedIn: הצג `profile_name`. אם אין `page_followers` — אל תוסיף שום הפניה ל-LinkedIn Analytics — פשוט רשום "מחובר כ-[שם]"
 9. **אסור** להציע "להגדיר פרופיל עסקי" במסגרת ניתוח ביצועים — המשתמש כבר פרסם ויש לו פרופיל
 10. אם `posts_tracked` = 0 — אל תאמר "עדיין לא פרסמנו" — ייתכן שהנתון אופס עם הפעלה מחדש של השרת
 

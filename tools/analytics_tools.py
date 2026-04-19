@@ -195,7 +195,7 @@ def _fetch_facebook_stats(token: str, page_id: str = None) -> Dict[str, Any]:
             result["followers"] = d.get("followers_count") or d.get("fan_count") or result.get("followers", 0)
             result["page_name"] = result.get("page_name") or d.get("name", "")
 
-        # Recent posts with engagement (requires Page Access Token)
+        # Recent posts with engagement (requires Page Access Token + pages_read_engagement)
         posts_r = httpx.get(
             f"https://graph.facebook.com/{page_id}/posts",
             params={
@@ -215,10 +215,21 @@ def _fetch_facebook_stats(token: str, page_id: str = None) -> Dict[str, Any]:
                     "comments": p.get("comments", {}).get("summary", {}).get("total_count", 0),
                     "shares": p.get("shares", {}).get("count", 0),
                 })
-            if posts:
-                result["recent_posts"] = posts
+            result["recent_posts"] = posts  # may be empty list if no posts yet
+        elif posts_r.status_code == 403:
+            # App Review required for pages_read_engagement in live mode
+            try:
+                err_msg = posts_r.json().get("error", {}).get("message", "")
+            except Exception:
+                err_msg = ""
+            result["posts_status"] = "requires_app_review"
+            result["posts_error"] = err_msg or "pages_read_engagement requires Facebook App Review"
         else:
-            result["posts_note"] = f"posts API {posts_r.status_code}"
+            result["posts_status"] = f"error_{posts_r.status_code}"
+            try:
+                result["posts_error"] = posts_r.json().get("error", {}).get("message", "")[:120]
+            except Exception:
+                result["posts_error"] = f"HTTP {posts_r.status_code}"
 
     except Exception as e:
         logger.warning(f"Facebook stats error: {e}")
