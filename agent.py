@@ -985,6 +985,21 @@ class AdvertisingAgent:
 
     def _build_system_prompt(self) -> str:
         """Build dynamic system prompt with business profile context."""
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            from backports.zoneinfo import ZoneInfo  # type: ignore
+        israel_tz = ZoneInfo("Asia/Jerusalem")
+        now_il = datetime.now(tz=israel_tz)
+        current_datetime_str = now_il.strftime("%A %d/%m/%Y %H:%M")
+        day_names = {"Monday": "שני", "Tuesday": "שלישי", "Wednesday": "רביעי",
+                     "Thursday": "חמישי", "Friday": "שישי", "Saturday": "שבת", "Sunday": "ראשון"}
+        for en, he in day_names.items():
+            current_datetime_str = current_datetime_str.replace(en, he)
+
+        datetime_context = f"\n\n**⏰ תאריך ושעה נוכחית (שעון ישראל):** {current_datetime_str}\nכשמשתמש מבקש לתזמן 'מחר', 'בעוד שעה' וכדומה — חשב לפי תאריך זה ושלח `scheduled_for` בפורמט ISO מלא: `YYYY-MM-DDTHH:MM`"
+
         self.profile = ProfileManager.get_or_create(self.session_id)
         profile_context = self.profile.to_agent_context()
 
@@ -1013,7 +1028,7 @@ class AdvertisingAgent:
         else:
             plan_instruction = ""
 
-        return SYSTEM_PROMPT + "\n\n" + profile_context + onboarding_instruction + plan_instruction
+        return SYSTEM_PROMPT + datetime_context + "\n\n" + profile_context + onboarding_instruction + plan_instruction
 
     def _select_model(self, message: str) -> tuple[str, bool]:
         """
