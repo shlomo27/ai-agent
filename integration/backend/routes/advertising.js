@@ -23,7 +23,7 @@ const AI_AGENT_URL = process.env.AI_AGENT_URL || 'https://ai-agent-production-bf
 // Defines which features are available per marketing plan
 const PLAN_FEATURES = {
   free:           { scheduled_posts: 0,  ab_testing: false, translation: false, competitor_monitor: false, report: false },
-  basic:          { scheduled_posts: 3,  ab_testing: false, translation: true,  competitor_monitor: false, report: false },
+  basic:          { scheduled_posts: 3,  ab_testing: false, translation: false, competitor_monitor: false, report: false },
   pro:            { scheduled_posts: 20, ab_testing: true,  translation: true,  competitor_monitor: false, report: true  },
   business:       { scheduled_posts: -1, ab_testing: true,  translation: true,  competitor_monitor: true,  report: true  },
   bundle_starter: { scheduled_posts: 3,  ab_testing: false, translation: true,  competitor_monitor: false, report: false },
