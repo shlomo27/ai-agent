@@ -73,7 +73,7 @@ const PLATFORM_CONFIG = {
     // r_basicprofile / profile — read name/headline
     // offline_access — get refresh token (365 days) so we can auto-renew the 60-day access token
     // r_organization_social — company page analytics (requires Marketing API partner)
-    scope: 'openid profile email w_member_social offline_access',
+    scope: 'openid profile email w_member_social',
   },
   twitter: {
     authUrl: 'https://twitter.com/i/oauth2/authorize',
