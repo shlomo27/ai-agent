@@ -76,11 +76,11 @@ class LinkedInPlatform(BasePlatform):
             await self.connect()
         author = target_id or self._person_urn
 
-        # New LinkedIn Posts API — ugcPosts deprecated for apps created after May 2023.
-        # LinkedIn-Version uses YYYYMMDD format; try recent versions newest-first.
+        # LinkedIn-Version: 6-digit YYYYMM format, released on specific dates.
+        # Try recent versions newest-first; skip non-existent (426) or invalid (400).
         import httpx as _httpx
         from platforms.base import PlatformError
-        _VERSIONS = ["20250101", "20240901", "20240601", "20231201"]
+        _VERSIONS = ["202504", "202501", "202410", "202407", "202404", "202401", "202310"]
         url = "https://api.linkedin.com/rest/posts"
         payload: Dict[str, Any] = {
             "author": author,
@@ -104,9 +104,9 @@ class LinkedInPlatform(BasePlatform):
                     "X-Restli-Protocol-Version": "2.0.0",
                 }
                 r = await client.post(url, json=payload, headers=headers)
-                if r.status_code == 426:
+                if r.status_code in (400, 426):  # INVALID_VERSION or NONEXISTENT_VERSION
                     last_error = r.text[:200]
-                    continue  # version not active, try older one
+                    continue  # try next version
                 if r.status_code not in (200, 201):
                     raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
                 post_id = r.headers.get("x-restli-id", "")
