@@ -25,11 +25,11 @@ const QUICK_ACTIONS = {
 const UI_TEXT = {
   he: {
     headerTitle: 'עוזר פרסום חכם',
-    subtitle: 'מופעל על ידי Claude AI · claude-opus-4-6',
+    subtitle: 'עוזר פרסום חכם מבוסס AI',
     profileReady: '✅ פרופיל מוכן',
     setupFirst: '⚙️ הגדרה ראשונית',
     reset: 'איפוס',
-    thinking: 'Claude חושב...',
+    thinking: 'חושב...',
     placeholder: 'כתוב הודעה... (Enter לשליחה, Shift+Enter לשורה חדשה)',
     send: 'שלח ➤',
     error: '❌ שגיאה בחיבור לעוזר. נסה שוב.',
@@ -44,11 +44,11 @@ const UI_TEXT = {
   },
   en: {
     headerTitle: 'Smart Advertising Assistant',
-    subtitle: 'Powered by Claude AI · claude-opus-4-6',
+    subtitle: 'Smart AI Advertising Assistant',
     profileReady: '✅ Profile Ready',
     setupFirst: '⚙️ Initial Setup',
     reset: 'Reset',
-    thinking: 'Claude thinking...',
+    thinking: 'Thinking...',
     placeholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
     send: 'Send ➤',
     error: '❌ Connection error. Please try again.',
