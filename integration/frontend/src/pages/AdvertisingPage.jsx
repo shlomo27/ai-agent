@@ -47,11 +47,13 @@ export default function AdvertisingPage() {
 
   return (
     <div className="adv-page" dir={isRtl ? 'rtl' : 'ltr'}>
-      {/* Collapsible social connect panel */}
-      <div className="adv-connect-wrapper">
+      {/* Collapsible social connect sidebar */}
+      <div className={`adv-connect-wrapper${connectOpen ? '' : ' collapsed'}`}>
         <button className="adv-connect-toggle" onClick={toggleConnect}>
-          <span>🔗 {lang === 'he' ? 'חיבור פלטפורמות' : 'Connect Platforms'}</span>
-          <span className="adv-toggle-arrow">{connectOpen ? '▲' : '▼'}</span>
+          <span className="adv-connect-toggle-label">
+            🔗 {lang === 'he' ? 'חיבור פלטפורמות' : 'Connect Platforms'}
+          </span>
+          <span className="adv-toggle-arrow">{connectOpen ? '◀' : '▶'}</span>
         </button>
         {connectOpen && (
           <div className="adv-connect-body">
@@ -60,7 +62,7 @@ export default function AdvertisingPage() {
         )}
       </div>
 
-      {/* Chat — pass appContext so agent gets pre-loaded with app info */}
+      {/* Chat */}
       <div className="adv-page-content">
         <AdvertisingAgent
           language={lang}
