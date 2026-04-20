@@ -118,6 +118,7 @@ class LinkedInPlatform(BasePlatform):
                 "Authorization": f"Bearer {self.access_token}",
                 "Content-Type": "application/json",
                 "X-Restli-Protocol-Version": "2.0.0",
+                "LinkedIn-Version": "202503",
             }
             r1 = await client.post(legacy_url, json=legacy_payload, headers=legacy_headers)
             if r1.status_code in (200, 201):
