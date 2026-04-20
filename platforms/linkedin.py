@@ -106,6 +106,14 @@ class LinkedInPlatform(BasePlatform):
                     content=text,
                     posted_at=datetime.now(),
                 )
+            if r1.status_code == 403 and "ugcPosts.CREATE" in r1.text:
+                raise PlatformError(
+                    "linkedin",
+                    "LinkedIn posting blocked: the app is missing the 'Share on LinkedIn' product. "
+                    "Go to LinkedIn Developer Portal → your app → Products → request 'Share on LinkedIn', "
+                    "then ask the user to reconnect their LinkedIn account.",
+                    403,
+                )
             ugc_error = f"HTTP {r1.status_code}: {r1.text[:200]}"
 
             # 2) Fallback: new versioned REST API (quarterly versions: 03/06/09/12)
