@@ -40,12 +40,14 @@ class LinkedInPlatform(BasePlatform):
         try:
             r = await client.post(
                 "https://www.linkedin.com/oauth/v2/introspectToken",
-                headers={"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"},
-                content=f"token={self.access_token}",
+                headers={"Authorization": f"Basic {creds}"},
+                data={"token": self.access_token},
             )
+            if r.status_code != 200:
+                return f"introspection HTTP {r.status_code}: {r.text[:200]}"
             d = r.json()
             if not d.get("active"):
-                return f"token inactive/expired (status {r.status_code})"
+                return f"token inactive/revoked — raw: {r.text[:200]}"
             return d.get("scope", "no scope field in response")
         except Exception as e:
             return f"introspection failed: {e}"

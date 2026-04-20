@@ -89,6 +89,9 @@ router.post('/chat', async (req, res) => {
         const freshToken = await refreshTokenIfNeeded(user, t.platform);
         socialTokens[t.platform] = freshToken || t.accessToken;
         if (t.pageId) socialPageIds[t.platform] = t.pageId;
+        const expiry = t.expiresAt ? new Date(t.expiresAt).toISOString() : 'no expiry stored';
+        const tokenPrefix = (freshToken || t.accessToken).slice(0, 12);
+        console.log(`[token-debug] ${t.platform}: expiresAt=${expiry} token_prefix=${tokenPrefix}... refreshed=${!!freshToken}`);
       }
     }
   } catch (e) {
