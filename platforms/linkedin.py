@@ -76,12 +76,15 @@ class LinkedInPlatform(BasePlatform):
             await self.connect()
         author = target_id or self._person_urn
 
-        # LinkedIn-Version: 6-digit YYYYMM format, released on specific dates.
-        # Try recent versions newest-first; skip non-existent (426) or invalid (400).
+        # LinkedIn releases quarterly versions on months 03/06/09/12.
+        # X-Restli-Protocol-Version must NOT be sent to the /rest/ endpoint.
         import httpx as _httpx
         from platforms.base import PlatformError
-        _VERSIONS = ["202504", "202501", "202410", "202407", "202404", "202401", "202310"]
-        url = "https://api.linkedin.com/rest/posts"
+        _REST_VERSIONS = [
+            "202503", "202412", "202409", "202406", "202403",
+            "202312", "202309", "202306", "202303",
+        ]
+        rest_url = "https://api.linkedin.com/rest/posts"
         payload: Dict[str, Any] = {
             "author": author,
             "commentary": text,
@@ -95,18 +98,18 @@ class LinkedInPlatform(BasePlatform):
             "isReshareDisableForOperator": False,
         }
         async with _httpx.AsyncClient(timeout=30.0) as client:
-            last_error = ""
-            for version in _VERSIONS:
+            # 1) Try new versioned REST API
+            rest_last_error = ""
+            for version in _REST_VERSIONS:
                 headers = {
                     "Authorization": f"Bearer {self.access_token}",
                     "LinkedIn-Version": version,
                     "Content-Type": "application/json",
-                    "X-Restli-Protocol-Version": "2.0.0",
                 }
-                r = await client.post(url, json=payload, headers=headers)
-                if r.status_code in (400, 426):  # INVALID_VERSION or NONEXISTENT_VERSION
-                    last_error = r.text[:200]
-                    continue  # try next version
+                r = await client.post(rest_url, json=payload, headers=headers)
+                if r.status_code in (400, 426):
+                    rest_last_error = r.text[:200]
+                    continue
                 if r.status_code not in (200, 201):
                     raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
                 post_id = r.headers.get("x-restli-id", "")
@@ -117,7 +120,39 @@ class LinkedInPlatform(BasePlatform):
                     post_url=f"https://www.linkedin.com/feed/update/{post_id}" if post_id else "https://www.linkedin.com/feed/",
                     posted_at=datetime.now(),
                 )
-            raise PlatformError("linkedin", f"No active LinkedIn API version found. Last error: {last_error}", 426)
+
+            # 2) Fallback: legacy ugcPosts (still works for some apps)
+            legacy_url = f"{self.BASE_URL}/ugcPosts"
+            legacy_payload = {
+                "author": author,
+                "lifecycleState": "PUBLISHED",
+                "specificContent": {
+                    "com.linkedin.ugc.ShareContent": {
+                        "shareCommentary": {"text": text},
+                        "shareMediaCategory": "NONE",
+                    }
+                },
+                "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+            }
+            legacy_headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json",
+                "X-Restli-Protocol-Version": "2.0.0",
+            }
+            r2 = await client.post(legacy_url, json=legacy_payload, headers=legacy_headers)
+            if r2.status_code in (200, 201):
+                data = r2.json() if r2.text else {}
+                return SocialPost(
+                    platform="linkedin",
+                    platform_post_id=data.get("id", ""),
+                    content=text,
+                    posted_at=datetime.now(),
+                )
+            raise PlatformError(
+                "linkedin",
+                f"Both REST and legacy APIs failed. REST last error: {rest_last_error} | Legacy: HTTP {r2.status_code}: {r2.text[:200]}",
+                r2.status_code,
+            )
 
     async def find_relevant_users(
         self,
