@@ -111,11 +111,46 @@ ILMARIAI היא פלטפורמת AI מקיפה הכוללת שני מוצרים 
 - לשאול על מטרה (הנח: מודעות + לידים)
 
 ### אחרי הטיוטה:
-1. שאל: "האם לאשר ולפרסם? (כן / לא / שינויים)"
+1. שאל בהודעה אחת: "האם לאשר ולפרסם? ואם כן — **לכל הפלטפורמות המחוברות** ([ציין רשימה]) או **לפלטפורמה ספציפית**? (כן הכל / כן ל... / שינויים / לא)"
 2. שאל: "רוצה לצרף תמונה או סרטון לפוסט? (כן — העלה מהמחשב עם כפתור 📎 / לא)"
    - אם **כן** → הסבר: "לחץ על כפתור 📎 בתחתית הצ'אט, בחר קובץ מהמחשב — ואז שלח שוב לאישור"
    - אם **לא** → פרסם ללא מדיה
    - אם ההודעה מכילה `[מדיה לפרסום: URL]` → השתמש ב-URL הזה ב-media_urls בעת הפרסום
+
+## 🎉 לאחר פרסום מוצלח — זרימה חובה (בסדר הזה):
+
+### שלב 1 — אישור הפרסום:
+"✅ הפוסט פורסם ב-[פלטפורמות]!"
+
+### שלב 2 — קידום בתשלום (אם פייסבוק/אינסטגרם/לינקדאין מחוברים):
+"💰 **רוצה להגביר חשיפה?** ניתן לקדם את הפוסט בתשלום ולהגיע לקהל רחב יותר:
+• **פייסבוק/אינסטגרם** → Facebook Ads Manager
+• **לינקדאין** → LinkedIn Campaign Manager"
+
+### שלב 3 — מנוי נוכחי + upsell:
+הצג בפורמט קצר מה המשתמש יכול לעשות לפי המנוי + מה זמין במנויים אחרים:
+
+**אם plan=free:**
+"📋 **במנוי Free שלך:** פרסום אורגני, יצירת תוכן בסיסית
+✨ **Pro יוסיף לך:** תזמון אוטומטי, A/B Testing, דוחות שבועיים, Smart Reply
+🚀 **Business יוסיף לך:** + ניטור מתחרים, תרגום ל-6 שפות, CRM מובנה"
+
+**אם plan=pro:**
+"📋 **במנוי Pro שלך:** תזמון, A/B Testing, דוחות, Smart Reply — הכל פעיל!
+🚀 **Business יוסיף לך:** ניטור מתחרים, תרגום מורחב, CRM מובנה, פלטפורמות נוספות"
+
+**אם plan=business/max:**
+"📋 **במנוי Business שלך יש הכל!** אם תרצה שנשדרג משהו — רק תגיד 😊"
+
+### שלב 4 — סריקת קבוצות:
+שאל: "🔍 **רוצה שאסרוק קבוצות רלוונטיות** לנושא הפוסט שאפשר לשתף בהן?"
+
+**אם כן** → קרא ל-`scan_groups_for_posting` עם platform ו-topic:
+- **plan=free**: "🔍 נמצאו {groups_found} קבוצות רלוונטיות. **שדרג ל-Pro** כדי לראות את הפירוט ולשלוח אליהן פוסטים"
+- **plan=pro/business**: הצג פירוט הקבוצות שהכלי מחזיר, ואז שאל:
+  "רוצה שאכין **פוסט מיוחד לקבוצות**? (פוסט לקבוצות הוא יותר שיחתי ופחות מכירתי מפוסט רגיל)"
+  - **אם כן** → כתוב פוסט לקבוצות → הצג → שאל "האם לאשר?" → לאחר אישור: שאל "לאיזה קבוצות? (לכולן / ספציפי)" → פרסם → "✅ הפוסט נשלח ל-X קבוצות!"
+  - **אם לא** → המשך כרגיל
 
 ### ❌ אחרי הפרסום — אל תציע תזמון:
 - **אל תציע תזמון** (schedule_post) למשתמשי Free — זה פיצ'ר Pro בלבד
@@ -288,6 +323,7 @@ ILMARIAI היא פלטפורמת AI מקיפה הכוללת שני מוצרים 
 8. LinkedIn: הצג `profile_name`. אם אין `page_followers` — אל תוסיף שום הפניה ל-LinkedIn Analytics — פשוט רשום "מחובר כ-[שם]"
 9. **אסור** להציע "להגדיר פרופיל עסקי" במסגרת ניתוח ביצועים — המשתמש כבר פרסם ויש לו פרופיל
 10. אם `posts_tracked` = 0 — אל תאמר "עדיין לא פרסמנו" — ייתכן שהנתון אופס עם הפעלה מחדש של השרת
+11. פייסבוק/לינקדאין עם נתונים חלקיים (posts_status=requires_app_review, אין page_followers) — הצג את מה שיש, ובסוף הוסף בטון קליל ומצחיק: "😄 *אל תדאג — בקרוב תוכל לראות את כל הנתונים המלאים ישירות כאן בדוח! אנחנו עובדים על זה ומבטיחים שזה יהיה שווה את ההמתנה* 🚀"
 
 היה ידידותי, מקצועי ומעורר השראה.
 תגובות קצרות וממוקדות — לא טבלאות ארוכות וכותרות גדולות.
@@ -895,6 +931,19 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "scan_groups_for_posting",
+        "description": "סרוק קבוצות רלוונטיות לנושא מסוים לפרסום. Free: מחזיר רק מספר קבוצות שנמצאו. Pro+: מחזיר פירוט מלא עם אפשרות שליחה.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string", "description": "פלטפורמה: facebook, linkedin, reddit"},
+                "topic": {"type": "string", "description": "נושא הפוסט לחיפוש קבוצות רלוונטיות"},
+                "limit": {"type": "integer", "default": 15, "description": "מספר קבוצות מרבי לחיפוש"},
+            },
+            "required": ["platform", "topic"],
+        },
+    },
 ]
 
 
@@ -1319,6 +1368,8 @@ class AdvertisingAgent:
                 return log_action(session_id=self.session_id, **tool_input)
             elif tool_name == "get_action_log":
                 return {"actions": get_action_log(session_id=self.session_id, **tool_input)}
+            elif tool_name == "scan_groups_for_posting":
+                return await self._scan_groups_for_posting(**tool_input)
 
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
@@ -1486,6 +1537,43 @@ class AdvertisingAgent:
             keywords=keywords,
             limit=max_results,
         )
+
+    async def _scan_groups_for_posting(
+        self,
+        platform: str,
+        topic: str,
+        limit: int = 15,
+    ) -> Dict[str, Any]:
+        """Scan relevant groups for posting, results gated by subscription plan."""
+        keywords = [topic]
+        if self.profile.onboarding_complete:
+            keywords += self.profile.target_audience.interests[:2]
+            keywords += self.profile.content_strategy.brand_keywords[:2]
+        keywords = [k for k in keywords if k][:6]
+
+        groups_result = await social_tools.find_relevant_groups(
+            platform=platform,
+            keywords=keywords,
+            limit=limit,
+        )
+        groups = groups_result.get("groups", [])
+        count = len(groups)
+
+        if self.plan == "free":
+            return {
+                "plan": "free",
+                "groups_found": count,
+                "can_post_to_groups": False,
+                "upgrade_message": f"נמצאו {count} קבוצות רלוונטיות. שדרג ל-Pro לראות פירוט ולשלוח פוסטים",
+            }
+
+        return {
+            "plan": self.plan,
+            "groups_found": count,
+            "can_post_to_groups": True,
+            "groups": groups[:10],
+            "platform": platform,
+        }
 
     def _get_platform_recommendations(
         self,
