@@ -76,52 +76,10 @@ class LinkedInPlatform(BasePlatform):
             await self.connect()
         author = target_id or self._person_urn
 
-        # LinkedIn releases quarterly versions on months 03/06/09/12.
-        # X-Restli-Protocol-Version must NOT be sent to the /rest/ endpoint.
         import httpx as _httpx
         from platforms.base import PlatformError
-        _REST_VERSIONS = [
-            "202503", "202412", "202409", "202406", "202403",
-            "202312", "202309", "202306", "202303",
-        ]
-        rest_url = "https://api.linkedin.com/rest/posts"
-        payload: Dict[str, Any] = {
-            "author": author,
-            "commentary": text,
-            "visibility": "PUBLIC",
-            "distribution": {
-                "feedDistribution": "MAIN_FEED",
-                "targetEntities": [],
-                "thirdPartyDistributionChannels": [],
-            },
-            "lifecycleState": "PUBLISHED",
-            "isReshareDisableForOperator": False,
-        }
         async with _httpx.AsyncClient(timeout=30.0) as client:
-            # 1) Try new versioned REST API
-            rest_last_error = ""
-            for version in _REST_VERSIONS:
-                headers = {
-                    "Authorization": f"Bearer {self.access_token}",
-                    "LinkedIn-Version": version,
-                    "Content-Type": "application/json",
-                }
-                r = await client.post(rest_url, json=payload, headers=headers)
-                if r.status_code in (400, 426):
-                    rest_last_error = r.text[:200]
-                    continue
-                if r.status_code not in (200, 201):
-                    raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
-                post_id = r.headers.get("x-restli-id", "")
-                return SocialPost(
-                    platform="linkedin",
-                    platform_post_id=post_id,
-                    content=text,
-                    post_url=f"https://www.linkedin.com/feed/update/{post_id}" if post_id else "https://www.linkedin.com/feed/",
-                    posted_at=datetime.now(),
-                )
-
-            # 2) Fallback: legacy ugcPosts (still works for some apps)
+            # 1) Try ugcPosts first — works with w_member_social + "Share on LinkedIn" product
             legacy_url = f"{self.BASE_URL}/ugcPosts"
             legacy_payload = {
                 "author": author,
@@ -139,19 +97,64 @@ class LinkedInPlatform(BasePlatform):
                 "Content-Type": "application/json",
                 "X-Restli-Protocol-Version": "2.0.0",
             }
-            r2 = await client.post(legacy_url, json=legacy_payload, headers=legacy_headers)
-            if r2.status_code in (200, 201):
-                data = r2.json() if r2.text else {}
+            r1 = await client.post(legacy_url, json=legacy_payload, headers=legacy_headers)
+            if r1.status_code in (200, 201):
+                data = r1.json() if r1.text else {}
                 return SocialPost(
                     platform="linkedin",
                     platform_post_id=data.get("id", ""),
                     content=text,
                     posted_at=datetime.now(),
                 )
+            ugc_error = f"HTTP {r1.status_code}: {r1.text[:200]}"
+
+            # 2) Fallback: new versioned REST API (quarterly versions: 03/06/09/12)
+            _REST_VERSIONS = [
+                "202503", "202412", "202409", "202406",
+                "202403", "202312", "202309", "202306",
+            ]
+            rest_url = "https://api.linkedin.com/rest/posts"
+            rest_payload: Dict[str, Any] = {
+                "author": author,
+                "commentary": text,
+                "visibility": "PUBLIC",
+                "distribution": {
+                    "feedDistribution": "MAIN_FEED",
+                    "targetEntities": [],
+                    "thirdPartyDistributionChannels": [],
+                },
+                "lifecycleState": "PUBLISHED",
+                "isReshareDisableForOperator": False,
+            }
+            rest_last_error = ""
+            for version in _REST_VERSIONS:
+                headers = {
+                    "Authorization": f"Bearer {self.access_token}",
+                    "LinkedIn-Version": version,
+                    "Content-Type": "application/json",
+                }
+                r = await client.post(rest_url, json=rest_payload, headers=headers)
+                if r.status_code in (400, 426):
+                    rest_last_error = r.text[:200]
+                    continue  # wrong version — try next
+                if r.status_code == 403:
+                    rest_last_error = r.text[:200]
+                    break  # access denied — no point trying more versions
+                if r.status_code not in (200, 201):
+                    raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
+                post_id = r.headers.get("x-restli-id", "")
+                return SocialPost(
+                    platform="linkedin",
+                    platform_post_id=post_id,
+                    content=text,
+                    post_url=f"https://www.linkedin.com/feed/update/{post_id}" if post_id else "https://www.linkedin.com/feed/",
+                    posted_at=datetime.now(),
+                )
+
             raise PlatformError(
                 "linkedin",
-                f"Both REST and legacy APIs failed. REST last error: {rest_last_error} | Legacy: HTTP {r2.status_code}: {r2.text[:200]}",
-                r2.status_code,
+                f"LinkedIn posting failed. ugcPosts: {ugc_error} | REST/posts: {rest_last_error or 'not tried'}",
+                403,
             )
 
     async def find_relevant_users(
