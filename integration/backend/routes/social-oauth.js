@@ -71,8 +71,9 @@ const PLATFORM_CONFIG = {
     redirectUri: process.env.LINKEDIN_REDIRECT_URI,
     // w_member_social — post on behalf of member
     // r_basicprofile / profile — read name/headline
+    // offline_access — get refresh token (365 days) so we can auto-renew the 60-day access token
     // r_organization_social — company page analytics (requires Marketing API partner)
-    scope: 'openid profile email w_member_social',
+    scope: 'openid profile email w_member_social offline_access',
   },
   twitter: {
     authUrl: 'https://twitter.com/i/oauth2/authorize',
