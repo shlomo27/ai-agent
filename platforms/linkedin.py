@@ -76,15 +76,12 @@ class LinkedInPlatform(BasePlatform):
             await self.connect()
         author = target_id or self._person_urn
 
-        # New LinkedIn Posts API — ugcPosts deprecated for apps created after May 2023
+        # New LinkedIn Posts API — ugcPosts deprecated for apps created after May 2023.
+        # LinkedIn-Version uses YYYYMMDD format; try recent versions newest-first.
         import httpx as _httpx
+        from platforms.base import PlatformError
+        _VERSIONS = ["20250101", "20240901", "20240601", "20231201"]
         url = "https://api.linkedin.com/rest/posts"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "LinkedIn-Version": "202412",
-            "Content-Type": "application/json",
-            "X-Restli-Protocol-Version": "2.0.0",
-        }
         payload: Dict[str, Any] = {
             "author": author,
             "commentary": text,
@@ -98,18 +95,29 @@ class LinkedInPlatform(BasePlatform):
             "isReshareDisableForOperator": False,
         }
         async with _httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(url, json=payload, headers=headers)
-            if r.status_code not in (200, 201):
-                from platforms.base import PlatformError
-                raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
-            post_id = r.headers.get("x-restli-id", "")
-            return SocialPost(
-                platform="linkedin",
-                platform_post_id=post_id,
-                content=text,
-                post_url=f"https://www.linkedin.com/feed/update/{post_id}" if post_id else "https://www.linkedin.com/feed/",
-                posted_at=datetime.now(),
-            )
+            last_error = ""
+            for version in _VERSIONS:
+                headers = {
+                    "Authorization": f"Bearer {self.access_token}",
+                    "LinkedIn-Version": version,
+                    "Content-Type": "application/json",
+                    "X-Restli-Protocol-Version": "2.0.0",
+                }
+                r = await client.post(url, json=payload, headers=headers)
+                if r.status_code == 426:
+                    last_error = r.text[:200]
+                    continue  # version not active, try older one
+                if r.status_code not in (200, 201):
+                    raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
+                post_id = r.headers.get("x-restli-id", "")
+                return SocialPost(
+                    platform="linkedin",
+                    platform_post_id=post_id,
+                    content=text,
+                    post_url=f"https://www.linkedin.com/feed/update/{post_id}" if post_id else "https://www.linkedin.com/feed/",
+                    posted_at=datetime.now(),
+                )
+            raise PlatformError("linkedin", f"No active LinkedIn API version found. Last error: {last_error}", 426)
 
     async def find_relevant_users(
         self,
