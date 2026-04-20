@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any
 
+import base64
+
 from config import config
 from models.platform import PlatformAccount, SocialPost, DiscoveredUser, DiscoveredGroup, PlatformMetrics
 from platforms.base import BasePlatform
@@ -27,6 +29,26 @@ class LinkedInPlatform(BasePlatform):
             demo_mode=False if access_token else config.DEMO_MODE,
         )
         self._person_urn: str = ""
+
+    async def _introspect_token(self, client: Any) -> str:
+        """Return granted scopes string, or error message, for diagnostics."""
+        if not config.LINKEDIN_CLIENT_ID or not config.LINKEDIN_CLIENT_SECRET:
+            return "client_id/secret not configured"
+        creds = base64.b64encode(
+            f"{config.LINKEDIN_CLIENT_ID}:{config.LINKEDIN_CLIENT_SECRET}".encode()
+        ).decode()
+        try:
+            r = await client.post(
+                "https://www.linkedin.com/oauth/v2/introspectToken",
+                headers={"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"},
+                content=f"token={self.access_token}",
+            )
+            d = r.json()
+            if not d.get("active"):
+                return f"token inactive/expired (status {r.status_code})"
+            return d.get("scope", "no scope field in response")
+        except Exception as e:
+            return f"introspection failed: {e}"
 
     def _get_default_headers(self) -> Dict[str, str]:
         return {
@@ -107,11 +129,14 @@ class LinkedInPlatform(BasePlatform):
                     posted_at=datetime.now(),
                 )
             if r1.status_code == 403 and "ugcPosts.CREATE" in r1.text:
+                granted_scopes = await self._introspect_token(client)
+                logger.error("LinkedIn ugcPosts.CREATE 403 — granted scopes: %s", granted_scopes)
                 raise PlatformError(
                     "linkedin",
-                    "LinkedIn posting blocked: the app is missing the 'Share on LinkedIn' product. "
-                    "Go to LinkedIn Developer Portal → your app → Products → request 'Share on LinkedIn', "
-                    "then ask the user to reconnect their LinkedIn account.",
+                    f"LinkedIn posting blocked (ugcPosts.CREATE 403). "
+                    f"Granted scopes: [{granted_scopes}]. "
+                    f"Needs w_member_social + 'Share on LinkedIn' product in Developer Portal. "
+                    f"Raw error: {r1.text[:200]}",
                     403,
                 )
             ugc_error = f"HTTP {r1.status_code}: {r1.text[:200]}"
@@ -159,9 +184,12 @@ class LinkedInPlatform(BasePlatform):
                     posted_at=datetime.now(),
                 )
 
+            granted_scopes = await self._introspect_token(client)
+            logger.error("LinkedIn all posting attempts failed — granted scopes: %s", granted_scopes)
             raise PlatformError(
                 "linkedin",
-                f"LinkedIn posting failed. ugcPosts: {ugc_error} | REST/posts: {rest_last_error or 'not tried'}",
+                f"LinkedIn posting failed. Granted scopes: [{granted_scopes}]. "
+                f"ugcPosts: {ugc_error} | REST/posts: {rest_last_error or 'not tried'}",
                 403,
             )
 
