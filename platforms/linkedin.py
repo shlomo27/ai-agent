@@ -63,7 +63,7 @@ class LinkedInPlatform(BasePlatform):
         target_id: str = None,
         **kwargs,
     ) -> SocialPost:
-        """Post an update to LinkedIn (personal or company page)."""
+        """Post an update to LinkedIn using the new Posts API (ugcPosts is deprecated for new apps)."""
         if self.demo_mode:
             return SocialPost(
                 platform="linkedin",
@@ -75,25 +75,41 @@ class LinkedInPlatform(BasePlatform):
         if not self._person_urn:
             await self.connect()
         author = target_id or self._person_urn
-        url = f"{self.BASE_URL}/ugcPosts"
-        payload = {
-            "author": author,
-            "lifecycleState": "PUBLISHED",
-            "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": {"text": text},
-                    "shareMediaCategory": "NONE",
-                }
-            },
-            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+
+        # New LinkedIn Posts API — ugcPosts deprecated for apps created after May 2023
+        import httpx as _httpx
+        url = "https://api.linkedin.com/rest/posts"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "LinkedIn-Version": "202412",
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0",
         }
-        data = await self._request("POST", url, json=payload)
-        return SocialPost(
-            platform="linkedin",
-            platform_post_id=data.get("id", ""),
-            content=text,
-            posted_at=datetime.now(),
-        )
+        payload: Dict[str, Any] = {
+            "author": author,
+            "commentary": text,
+            "visibility": "PUBLIC",
+            "distribution": {
+                "feedDistribution": "MAIN_FEED",
+                "targetEntities": [],
+                "thirdPartyDistributionChannels": [],
+            },
+            "lifecycleState": "PUBLISHED",
+            "isReshareDisableForOperator": False,
+        }
+        async with _httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code not in (200, 201):
+                from platforms.base import PlatformError
+                raise PlatformError("linkedin", f"HTTP {r.status_code}: {r.text[:300]}", r.status_code)
+            post_id = r.headers.get("x-restli-id", "")
+            return SocialPost(
+                platform="linkedin",
+                platform_post_id=post_id,
+                content=text,
+                post_url=f"https://www.linkedin.com/feed/update/{post_id}" if post_id else "https://www.linkedin.com/feed/",
+                posted_at=datetime.now(),
+            )
 
     async def find_relevant_users(
         self,
