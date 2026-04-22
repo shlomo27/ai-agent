@@ -98,9 +98,15 @@ router.post('/chat', async (req, res) => {
     console.error('Failed to fetch social tokens:', e.message);
   }
 
+  // Session ID: project-specific if app_context provided, otherwise general
+  const appName = req.body.app_context?.app_name;
+  const sessionId = appName
+    ? `${req.advertising.userId}_${appName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 40)}`
+    : `${req.advertising.userId}_general`;
+
   const body = {
     ...req.body,
-    session_id: req.advertising.userId,   // use MongoDB _id as stable session key
+    session_id: sessionId,
     plan: req.advertising.plan,
     language: req.body.language || 'he',  // pass language preference
     social_tokens: socialTokens,          // per-user OAuth tokens
