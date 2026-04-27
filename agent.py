@@ -128,10 +128,14 @@ ILMARIAI היא פלטפורמת AI מקיפה הכוללת שני מוצרים 
 ### שלב 1 — אישור הפרסום:
 "✅ הפוסט פורסם ב-[פלטפורמות]!"
 
-### שלב 2 — קידום בתשלום (אם פייסבוק/אינסטגרם/לינקדאין מחוברים):
-"💰 **רוצה להגביר חשיפה?** ניתן לקדם את הפוסט בתשלום ולהגיע לקהל רחב יותר:
-• **פייסבוק/אינסטגרם** → Facebook Ads Manager
-• **לינקדאין** → LinkedIn Campaign Manager"
+### שלב 2 — קידום בתשלום (התאם לפלטפורמות שבאמת מחוברות בלבד):
+"💰 **רוצה להגביר חשיפה?** ניתן לקדם את הפוסט בתשלום ולהגיע לקהל רחב יותר:"
+- אם פייסבוק מחובר → "• **פייסבוק** → Facebook Ads Manager"
+- אם לינקדאין מחובר → "• **לינקדאין** → LinkedIn Campaign Manager"
+- אם Twitter/X מחובר → "• **Twitter/X** → Twitter Ads"
+- אם YouTube מחובר → "• **YouTube** → Google Ads (קמפיין וידאו)"
+- אם Reddit מחובר → "• **Reddit** → Reddit Ads"
+**אסור** להזכיר אינסטגרם או TikTok כאן — הן \"בקרוב\" בממשק.
 
 ### שלב 3 — מנוי נוכחי + upsell:
 הצג בפורמט קצר מה המשתמש יכול לעשות לפי המנוי + מה זמין במנויים אחרים:
@@ -1129,7 +1133,45 @@ class AdvertisingAgent:
         else:
             plan_instruction = ""
 
-        return SYSTEM_PROMPT + datetime_context + "\n\n" + profile_context + onboarding_instruction + plan_instruction
+        # Dynamic connected-platforms context — built from actual platform tokens.
+        # Platforms with a real token have demo_mode=False; demo_mode=True means
+        # "not connected by this user".  Instagram/TikTok are gated as "Coming soon"
+        # in the UI even if a token exists, so we treat them as unavailable here.
+        UNAVAILABLE_PLATFORMS = {"instagram", "tiktok"}
+        connected = [
+            name for name, p in self.platforms.items()
+            if not getattr(p, "demo_mode", True) and name not in UNAVAILABLE_PLATFORMS
+        ]
+        not_connected = [
+            name for name in self.platforms
+            if name not in connected and name not in UNAVAILABLE_PLATFORMS
+        ]
+        coming_soon = [name for name in self.platforms if name in UNAVAILABLE_PLATFORMS]
+
+        if connected:
+            connected_str = ", ".join(connected)
+            platform_context = (
+                "\n\n## 🔌 פלטפורמות מחוברות (מקור אמת — השתמש רק באלו):\n"
+                f"- **מחוברות וזמינות לפרסום**: {connected_str}\n"
+                f"- **לא מחוברות**: {', '.join(not_connected) if not_connected else '—'}\n"
+                f"- **בקרוב (לא ניתן להתחבר)**: {', '.join(coming_soon) if coming_soon else '—'}\n\n"
+                "**חוקים מחייבים:**\n"
+                "1. **חובה** לפרסם **לכל הפלטפורמות המחוברות** למעלה כברירת מחדל (אלא אם המשתמש ביקש פלטפורמה ספציפית).\n"
+                "2. **אסור** להזכיר פרסום ל-Instagram או TikTok — הן \"בקרוב\" ואינן זמינות.\n"
+                "3. **אסור** לכתוב \"אני שולח לפייסבוק ואינסטגרם\" אם אינסטגרם אינה ברשימת המחוברות.\n"
+                "4. כשמציינים לאן הפוסט פורסם — ציין **רק את הפלטפורמות שבאמת מחוברות**.\n"
+                "5. כשכותבים גרסאות פוסט שונות — כתוב גרסה לכל פלטפורמה מחוברת (לא רק פייסבוק/אינסטגרם).\n"
+                "6. YouTube — כלול רק אם המשתמש צירף וידאו; אחרת ציין שדורש וידאו.\n"
+            )
+        else:
+            platform_context = (
+                "\n\n## 🔌 פלטפורמות מחוברות:\n"
+                "אין כרגע אף פלטפורמה מחוברת. הסבר למשתמש שעליו לחבר לפחות פלטפורמה אחת "
+                "מהפאנל \"Connect Platforms\" לפני שניתן לפרסם. **אסור** לטעון שאתה שולח "
+                "פוסט לפייסבוק/אינסטגרם או לכל פלטפורמה אחרת — אף אחת אינה מחוברת.\n"
+            )
+
+        return SYSTEM_PROMPT + datetime_context + "\n\n" + profile_context + onboarding_instruction + plan_instruction + platform_context
 
     def _select_model(self, message: str) -> tuple[str, bool]:
         """

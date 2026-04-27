@@ -166,7 +166,7 @@ export default function SocialConnect({ language = 'he' }) {
   return (
     <div style={{ direction: t.dir }}>
       <h3 style={{ color: '#ccc', fontSize: 13, margin: '8px 0 8px', fontWeight: 600 }}>
-        {t.title}{connectedCount > 0 ? ` · ✅ מחובר ${connectedCount}` : ''}
+        {t.title}{connectedCount > 0 ? ` · ✅ ${t.connected} ${connectedCount}` : ''}
       </h3>
 
       {/* Banner when no platforms are connected */}
