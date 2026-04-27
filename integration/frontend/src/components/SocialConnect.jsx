@@ -29,6 +29,7 @@ const TEXT = {
     connect: 'חבר',
     disconnect: 'נתק',
     connected: 'מחובר',
+    connectedCount: (n) => `מחובר ${n}`,
     disconnected: 'לא מחובר',
     expired: 'פג תוקף',
     connecting: 'מחבר...',
@@ -51,6 +52,7 @@ const TEXT = {
     connect: 'Connect',
     disconnect: 'Disconnect',
     connected: 'Connected',
+    connectedCount: (n) => `${n} connected`,
     disconnected: 'Not connected',
     expired: 'Token expired',
     connecting: 'Connecting...',
@@ -166,7 +168,7 @@ export default function SocialConnect({ language = 'he' }) {
   return (
     <div style={{ direction: t.dir }}>
       <h3 style={{ color: '#ccc', fontSize: 13, margin: '8px 0 8px', fontWeight: 600 }}>
-        {t.title}{connectedCount > 0 ? ` · ✅ מחובר ${connectedCount}` : ''}
+        {t.title}{connectedCount > 0 ? ` · ✅ ${t.connectedCount(connectedCount)}` : ''}
       </h3>
 
       {/* Banner when no platforms are connected */}

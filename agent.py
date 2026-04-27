@@ -1101,6 +1101,36 @@ class AdvertisingAgent:
 
         datetime_context = f"\n\n**⏰ תאריך ושעה נוכחית (שעון ישראל):** {current_datetime_str}\nכשמשתמש מבקש לתזמן 'מחר', 'בעוד שעה' וכדומה — חשב לפי תאריך זה ושלח `scheduled_for` בפורמט ISO מלא: `YYYY-MM-DDTHH:MM`"
 
+        # Inject the real list of platforms the user has connected for THIS session.
+        # The LLM must rely on this list — never on examples in the static prompt —
+        # when deciding which platforms to publish to or mention in confirmations.
+        connected_names = sorted([
+            name for name, p in self.platforms.items()
+            if not getattr(p, "demo_mode", True)
+        ])
+        not_connected_names = sorted([
+            name for name in self.platforms.keys() if name not in connected_names
+        ])
+        if connected_names:
+            connected_str = ", ".join(connected_names)
+            not_connected_str = ", ".join(not_connected_names) if not_connected_names else "—"
+            platforms_context = (
+                f"\n\n## 🔌 פלטפורמות מחוברות (מקור אמת — חובה לציית):\n"
+                f"- **מחוברות עכשיו:** {connected_str}\n"
+                f"- **לא מחוברות:** {not_connected_str}\n"
+                f"⚠️ **חוקים מחייבים:**\n"
+                f"1. בעת שימוש ב-`post_content` — `platforms` חייב להיות תת-קבוצה של הרשימה המחוברת בלבד.\n"
+                f"2. כאשר המשתמש מבקש לפרסם 'בכל הפלטפורמות' / 'לרשתות' — פרסם **לכל** הפלטפורמות המחוברות לעיל, לא רק לפייסבוק/אינסטגרם.\n"
+                f"3. בעת אישור פרסום ('האם לאשר ולפרסם?') — ציין במפורש את כל הפלטפורמות המחוברות לעיל (לדוגמה: facebook, twitter, linkedin) ולא רק שתיים מהן.\n"
+                f"4. **אסור** לציין פלטפורמה שאינה ברשימת המחוברות כיעד פרסום (אפילו אם היא מופיעה בדוגמאות בהוראות לעיל).\n"
+                f"5. YouTube מחובר → דורש וידאו; כלול אותו רק אם המשתמש צירף וידאו.\n"
+            )
+        else:
+            platforms_context = (
+                f"\n\n## 🔌 פלטפורמות מחוברות:\n"
+                f"- אין כרגע פלטפורמות מחוברות. בקש מהמשתמש לחבר לפחות אחת בפאנל 'חיבור פלטפורמות' לפני שתציע פרסום.\n"
+            )
+
         self.profile = ProfileManager.get_or_create(self.session_id)
         profile_context = self.profile.to_agent_context()
 
@@ -1129,7 +1159,7 @@ class AdvertisingAgent:
         else:
             plan_instruction = ""
 
-        return SYSTEM_PROMPT + datetime_context + "\n\n" + profile_context + onboarding_instruction + plan_instruction
+        return SYSTEM_PROMPT + datetime_context + platforms_context + "\n\n" + profile_context + onboarding_instruction + plan_instruction
 
     def _select_model(self, message: str) -> tuple[str, bool]:
         """
