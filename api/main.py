@@ -256,22 +256,39 @@ async def list_platforms(session_id: Optional[str] = "default"):
 
 
 @app.post("/api/posts", response_model=CreatePostResponse)
-async def create_post(request: CreatePostRequest, session_id: Optional[str] = "default"):
+async def create_post(request: Request, request_body: CreatePostRequest, session_id: Optional[str] = "default"):
     """Create and publish a post to social media platforms."""
     agent = _get_or_create_agent(session_id)
 
+    media_urls = list(request_body.media_urls or [])
+    if not media_urls:
+        try:
+            from tools.advanced_tools import generate_post_image
+            base_url = str(request.base_url).rstrip("/")
+            platform = (request_body.platforms or ["linkedin"])[0]
+            img_url = generate_post_image(
+                content=request_body.content,
+                platform=platform,
+                base_url=base_url,
+            )
+            if img_url:
+                media_urls = [img_url]
+                logger.info(f"[create_post] auto-generated image: {img_url}")
+        except Exception as e:
+            logger.warning(f"[create_post] image generation failed: {e}")
+
     from tools.social_tools import post_content
     result = await post_content(
-        platforms=request.platforms,
-        content=request.content,
-        media_urls=request.media_urls,
-        groups=request.groups,
-        hashtags=request.hashtags,
+        platforms=request_body.platforms,
+        content=request_body.content,
+        media_urls=media_urls,
+        groups=request_body.groups,
+        hashtags=request_body.hashtags,
     )
 
     # Update stats
     profile = ProfileManager.get_or_create(session_id)
-    profile.total_posts_published += len(request.platforms)
+    profile.total_posts_published += len(request_body.platforms)
     ProfileManager.save(profile)
 
     return CreatePostResponse(**result)

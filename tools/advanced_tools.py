@@ -10,12 +10,123 @@ Advanced marketing tools:
 from __future__ import annotations
 import json
 import logging
+import os
+import textwrap
+import uuid
+from io import BytesIO
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
 import anthropic as _anthropic
 
 logger = logging.getLogger(__name__)
+
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/ai-agent-uploads"))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def generate_post_image(
+    content: str,
+    platform: str = "linkedin",
+    business_name: str = "ilmariai.com",
+    base_url: str = "",
+) -> str | None:
+    """
+    Generate a branded image for a social media post using Pillow.
+    Returns the public URL of the generated image, or None on failure.
+    """
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        logger.warning("Pillow not installed — skipping image generation")
+        return None
+
+    sizes = {
+        "linkedin":  (1200, 627),
+        "twitter":   (1200, 675),
+        "facebook":  (1200, 630),
+        "instagram": (1080, 1080),
+        "tiktok":    (1080, 1920),
+    }
+    w, h = sizes.get(platform, (1200, 627))
+
+    # ── Background gradient (dark purple → dark blue) ──────────────────────
+    img = Image.new("RGB", (w, h))
+    draw = ImageDraw.Draw(img)
+    for y in range(h):
+        ratio = y / h
+        r = int(15  + ratio * 10)
+        g = int(10  + ratio * 15)
+        b = int(40  + ratio * 60)
+        draw.line([(0, y), (w, y)], fill=(r, g, b))
+
+    # ── Subtle grid lines ───────────────────────────────────────────────────
+    grid_color = (255, 255, 255, 18)
+    grid_img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    grid_draw = ImageDraw.Draw(grid_img)
+    for x in range(0, w, 80):
+        grid_draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
+    for y in range(0, h, 80):
+        grid_draw.line([(0, y), (w, y)], fill=grid_color, width=1)
+    img = Image.alpha_composite(img.convert("RGBA"), grid_img).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # ── Accent bar at top ───────────────────────────────────────────────────
+    accent_h = max(6, h // 100)
+    for x in range(w):
+        ratio = x / w
+        r = int(99  + ratio * (236 - 99))
+        g = int(102 + ratio * (72  - 102))
+        b = int(241 + ratio * (153 - 241))
+        draw.line([(x, 0), (x, accent_h)], fill=(r, g, b))
+
+    # ── Font selection (fall back to default) ──────────────────────────────
+    font_size_body   = max(28, w // 28)
+    font_size_brand  = max(20, w // 48)
+
+    try:
+        font_body  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  font_size_body)
+        font_brand = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size_brand)
+    except Exception:
+        font_body  = ImageFont.load_default()
+        font_brand = font_body
+
+    # ── Wrap and draw post text ─────────────────────────────────────────────
+    max_chars = max(20, w // (font_size_body // 2))
+    clean = content.replace("\n\n", "\n").strip()[:400]
+    lines = []
+    for raw_line in clean.split("\n"):
+        lines.extend(textwrap.wrap(raw_line, width=max_chars) or [""])
+
+    max_lines = (h - 200) // (font_size_body + 10)
+    lines = lines[:max_lines]
+    if len(lines) == max_lines and len(clean.split()) > max_lines:
+        lines[-1] = lines[-1][:max(0, len(lines[-1]) - 3)] + "..."
+
+    text_block_h = len(lines) * (font_size_body + 10)
+    y_start = (h - text_block_h) // 2 - 20
+    padding = w // 14
+
+    shadow_offset = 2
+    for i, line in enumerate(lines):
+        y = y_start + i * (font_size_body + 10)
+        draw.text((padding + shadow_offset, y + shadow_offset), line, font=font_body, fill=(0, 0, 0, 120))
+        draw.text((padding, y), line, font=font_body, fill=(240, 240, 255))
+
+    # ── Brand tag at bottom ─────────────────────────────────────────────────
+    brand = business_name or "ilmariai.com"
+    draw.text((padding, h - font_size_brand - 24), brand, font=font_brand, fill=(160, 130, 255))
+
+    # ── Save and return URL ─────────────────────────────────────────────────
+    filename = f"post_{uuid.uuid4().hex[:12]}.png"
+    dest = UPLOAD_DIR / filename
+    img.save(dest, "PNG", optimize=True)
+
+    base = (base_url or os.getenv("PUBLIC_API_URL", "")).rstrip("/")
+    return f"{base}/uploads/{filename}" if base else None
+
+
 
 
 def _claude(prompt: str, max_tokens: int = 600) -> str:
