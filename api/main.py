@@ -264,7 +264,7 @@ async def create_post(request: Request, request_body: CreatePostRequest, session
     if not media_urls:
         try:
             from tools.advanced_tools import generate_post_image
-            base_url = str(request.base_url).rstrip("/")
+            base_url = os.getenv("PUBLIC_API_URL", str(request.base_url)).rstrip("/")
             platform = (request_body.platforms or ["linkedin"])[0]
             img_url = generate_post_image(
                 content=request_body.content,
