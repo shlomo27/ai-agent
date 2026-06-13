@@ -92,31 +92,42 @@ def generate_post_image(
         font_body  = ImageFont.load_default()
         font_brand = font_body
 
-    # ── Wrap and draw post text ─────────────────────────────────────────────
-    max_chars = max(20, w // (font_size_body // 2))
-    clean = content.replace("\n\n", "\n").strip()[:400]
-    lines = []
-    for raw_line in clean.split("\n"):
-        lines.extend(textwrap.wrap(raw_line, width=max_chars) or [""])
+    # ── Extract headline (first non-empty, non-emoji line, max 60 chars) ─────
+    padding = w // 12
+    clean_lines = [l.strip() for l in content.split("\n") if l.strip()]
+    # Pick the first line that looks like a real sentence (>10 chars)
+    headline_raw = next((l for l in clean_lines if len(l) > 10), clean_lines[0] if clean_lines else "")
+    # Strip emojis and markdown symbols for cleaner display
+    import re
+    headline_clean = re.sub(r'[^\x00-\x7F✅🚀💡⚡🎯📊🔥💰👉🌐📱]+', '', headline_raw).strip(" *#-→")
+    headline_clean = headline_clean[:72] + ("..." if len(headline_clean) > 72 else "")
 
-    max_lines = (h - 200) // (font_size_body + 10)
-    lines = lines[:max_lines]
-    if len(lines) == max_lines and len(clean.split()) > max_lines:
-        lines[-1] = lines[-1][:max(0, len(lines[-1]) - 3)] + "..."
+    # Large headline font
+    font_size_headline = max(52, w // 20)
+    try:
+        font_headline = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size_headline)
+    except Exception:
+        font_headline = font_body
 
-    text_block_h = len(lines) * (font_size_body + 10)
-    y_start = (h - text_block_h) // 2 - 20
-    padding = w // 14
+    headline_lines = textwrap.wrap(headline_clean, width=max(18, w // (font_size_headline // 2 + 2)))
+    headline_lines = headline_lines[:3]
 
-    shadow_offset = 2
-    for i, line in enumerate(lines):
-        y = y_start + i * (font_size_body + 10)
-        draw.text((padding + shadow_offset, y + shadow_offset), line, font=font_body, fill=(0, 0, 0, 120))
-        draw.text((padding, y), line, font=font_body, fill=(240, 240, 255))
+    total_h = len(headline_lines) * (font_size_headline + 16)
+    y_start = (h - total_h) // 2 - 40
+
+    for i, line in enumerate(headline_lines):
+        y = y_start + i * (font_size_headline + 16)
+        draw.text((padding + 2, y + 2), line, font=font_headline, fill=(0, 0, 30))
+        draw.text((padding, y), line, font=font_headline, fill=(255, 255, 255))
+
+    # ── Divider line ────────────────────────────────────────────────────────
+    div_y = y_start + total_h + 24
+    draw.line([(padding, div_y), (w - padding, div_y)], fill=(99, 102, 241), width=3)
 
     # ── Brand tag at bottom ─────────────────────────────────────────────────
     brand = business_name or "ilmariai.com"
-    draw.text((padding, h - font_size_brand - 24), brand, font=font_brand, fill=(160, 130, 255))
+    brand_upper = brand.upper()
+    draw.text((padding, h - font_size_brand - 28), brand_upper, font=font_brand, fill=(160, 130, 255))
 
     # ── Save and return URL ─────────────────────────────────────────────────
     filename = f"post_{uuid.uuid4().hex[:12]}.png"
