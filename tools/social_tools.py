@@ -43,6 +43,20 @@ async def post_content(
     if hashtags:
         full_content += "\n\n" + " ".join(f"#{tag.lstrip('#')}" for tag in hashtags)
 
+    # Auto-generate branded image if no media provided
+    if not media_urls:
+        try:
+            import os
+            from tools.advanced_tools import generate_post_image
+            base_url = os.getenv("PUBLIC_API_URL", "").rstrip("/")
+            platform_hint = platforms[0] if platforms else "linkedin"
+            img_url = generate_post_image(content=full_content, platform=platform_hint, base_url=base_url)
+            if img_url:
+                media_urls = [img_url]
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[post_content] image generation failed: {e}")
+
     for platform_name in platforms:
         platform = _get_platform(platform_name)
         if not platform:
