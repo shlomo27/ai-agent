@@ -80,6 +80,54 @@ class LinkedInPlatform(BasePlatform):
     async def get_account_info(self) -> PlatformAccount:
         return await self.connect()
 
+    async def _upload_image_to_linkedin(self, client, image_url: str, author: str) -> str | None:
+        """Upload an image to LinkedIn and return the asset URN, or None on failure."""
+        try:
+            import httpx as _httpx
+            # 1. Download the image
+            img_resp = await client.get(image_url, timeout=15.0, follow_redirects=True)
+            if img_resp.status_code != 200:
+                logger.warning(f"[linkedin] failed to fetch image {image_url}: {img_resp.status_code}")
+                return None
+            image_bytes = img_resp.content
+            content_type = img_resp.headers.get("content-type", "image/png").split(";")[0].strip()
+
+            # 2. Register upload
+            register_payload = {
+                "registerUploadRequest": {
+                    "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+                    "owner": author,
+                    "serviceRelationships": [{"relationshipType": "OWNER", "identifier": "urn:li:userGeneratedContent"}],
+                }
+            }
+            reg_headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json",
+                "X-Restli-Protocol-Version": "2.0.0",
+            }
+            reg_resp = await client.post(
+                f"{self.BASE_URL}/assets?action=registerUpload",
+                json=register_payload,
+                headers=reg_headers,
+            )
+            if reg_resp.status_code not in (200, 201):
+                logger.warning(f"[linkedin] registerUpload failed: {reg_resp.status_code} {reg_resp.text[:200]}")
+                return None
+            reg_data = reg_resp.json()
+            upload_url = reg_data["value"]["uploadMechanism"]["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]["uploadUrl"]
+            asset_urn = reg_data["value"]["asset"]
+
+            # 3. Upload binary
+            upload_headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": content_type}
+            up_resp = await client.put(upload_url, content=image_bytes, headers=upload_headers, timeout=30.0)
+            if up_resp.status_code not in (200, 201):
+                logger.warning(f"[linkedin] image upload failed: {up_resp.status_code}")
+                return None
+            return asset_urn
+        except Exception as e:
+            logger.warning(f"[linkedin] image upload exception: {e}")
+            return None
+
     async def post_content(
         self,
         text: str,
@@ -103,17 +151,28 @@ class LinkedInPlatform(BasePlatform):
         import httpx as _httpx
         from platforms.base import PlatformError
         async with _httpx.AsyncClient(timeout=30.0) as client:
+            # Try to upload image if provided
+            asset_urn = None
+            if media_urls:
+                asset_urn = await self._upload_image_to_linkedin(client, media_urls[0], author)
+
             # 1) Try ugcPosts first — works with w_member_social + "Share on LinkedIn" product
             legacy_url = f"{self.BASE_URL}/ugcPosts"
+            if asset_urn:
+                share_content = {
+                    "shareCommentary": {"text": text},
+                    "shareMediaCategory": "IMAGE",
+                    "media": [{"status": "READY", "media": asset_urn}],
+                }
+            else:
+                share_content = {
+                    "shareCommentary": {"text": text},
+                    "shareMediaCategory": "NONE",
+                }
             legacy_payload = {
                 "author": author,
                 "lifecycleState": "PUBLISHED",
-                "specificContent": {
-                    "com.linkedin.ugc.ShareContent": {
-                        "shareCommentary": {"text": text},
-                        "shareMediaCategory": "NONE",
-                    }
-                },
+                "specificContent": {"com.linkedin.ugc.ShareContent": share_content},
                 "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
             }
             legacy_headers = {
