@@ -1132,7 +1132,8 @@ class AdvertisingAgent:
         for en, he in day_names.items():
             current_datetime_str = current_datetime_str.replace(en, he)
 
-        datetime_context = f"\n\n**⏰ תאריך ושעה נוכחית (שעון ישראל):** {current_datetime_str}\nכשמשתמש מבקש לתזמן 'מחר', 'בעוד שעה' וכדומה — חשב לפי תאריך זה ושלח `scheduled_for` בפורמט ISO מלא: `YYYY-MM-DDTHH:MM`\n**⚠️ חשוב: כשכותבים פוסט שמזכיר שנה — השתמש תמיד בשנה הנוכחית מהתאריך למעלה, לא בשנה מהאימון.**"
+        current_year = now_il.year
+        datetime_context = f"\n\n**⏰ תאריך ושעה נוכחית (שעון ישראל):** {current_datetime_str}\n**📅 שנה נוכחית: {current_year}** — כשכותבים פוסט שמזכיר שנה (לדוגמה: 'Building a business in [year]') השתמש תמיד ב-{current_year}. אסור לכתוב שנה אחרת.\nכשמשתמש מבקש לתזמן 'מחר', 'בעוד שעה' וכדומה — חשב לפי תאריך זה ושלח `scheduled_for` בפורמט ISO מלא: `YYYY-MM-DDTHH:MM`"
 
         self.profile = ProfileManager.get_or_create(self.session_id)
         profile_context = self.profile.to_agent_context()
